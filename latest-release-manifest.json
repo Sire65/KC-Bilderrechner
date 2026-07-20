@@ -1,0 +1,12 @@
+{
+  "schema": "KC_LATEST_RELEASE_MANIFEST_V1",
+  "product": "KC Bilderrechner",
+  "version": "0.31.3.6.11",
+  "displayVersion": "V0.31.3.6 Repair 11",
+  "uiSchemaVersion": "0.31.3.6-r11-ui.1",
+  "releaseDate": "2026-07-20",
+  "status": "Candidate",
+  "sourceRelease": "KC_MarktKasse_Suite_V0_31_3_6_Repair_11_StimmtSo_Message30_HappyHourFix_Candidate",
+  "trainingVersion": "0.27.1",
+  "updateRule": "Diese Datei muss bei jeder neuen verbindlichen Kassenfreigabe aktualisiert werden. Auf GitHub dient sie dem Versionswächter als maßgebliche Referenz."
+}

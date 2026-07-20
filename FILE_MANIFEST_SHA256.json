@@ -1,0 +1,441 @@
+{
+    "format":  "KC_PUBLISH_MANIFEST_SHA256",
+    "version":  "Schulung V0.27.1 / Kasse V0.31.3.6 Repair 11",
+    "files":  [
+                  {
+                      "path":  ".nojekyll",
+                      "sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "bytes":  0
+                  },
+                  {
+                      "path":  "avatar-core/assets/chef/chef_female_neutral.png",
+                      "sha256":  "dc3ae9597f325c9379fe44ee55a702b251133b95e3f49a9a7292c182442b7a1b",
+                      "bytes":  272586
+                  },
+                  {
+                      "path":  "avatar-core/assets/chef/chef_female_neutral_armless_v0257.png",
+                      "sha256":  "b26dc90207061f67637db5ed7dd0e159dc2311d9630f961fb2d56239ad6735da",
+                      "bytes":  1545444
+                  },
+                  {
+                      "path":  "avatar-core/assets/chef/chef_male_approve.png",
+                      "sha256":  "0ed8217018e860295619aec41d398a8c63608a694cbbbda960815d5bb777c09d",
+                      "bytes":  163754
+                  },
+                  {
+                      "path":  "avatar-core/assets/chef/chef_male_neutral.png",
+                      "sha256":  "e20950113d559525e32c8701124678d9d10523df4e91b82d28786461730b328e",
+                      "bytes":  307627
+                  },
+                  {
+                      "path":  "avatar-core/assets/chef/chef_male_neutral_armless_v0257.png",
+                      "sha256":  "23ec53ff57287283aa52dc90c0e0587fc84193ec0aada7f959722202ce3e8dba",
+                      "bytes":  1527032
+                  },
+                  {
+                      "path":  "avatar-core/assets/chef/chef_male_smile.png",
+                      "sha256":  "6ebefbc8f5163dc39e9a8bcf95f85ab328c3926c51787deb065729a28a82abb5",
+                      "bytes":  147878
+                  },
+                  {
+                      "path":  "avatar-core/assets/chef/chef_male_speaking.png",
+                      "sha256":  "6898db843a091892aa16c1ea16651ed2a3bff5c34f9845a86613c3436cbb2a5d",
+                      "bytes":  150449
+                  },
+                  {
+                      "path":  "avatar-core/assets/chef/chef_male_thinking.png",
+                      "sha256":  "8498a792dd2614ec57c9548cc0dc275f945447d296961a03b2a10dae331b1b08",
+                      "bytes":  156957
+                  },
+                  {
+                      "path":  "avatar-core/assets/chef/chef_male_wave.png",
+                      "sha256":  "386571b0734047bb44e4d1a83c61aa8daf6c6305ac105abda0b96db41e422e49",
+                      "bytes":  184251
+                  },
+                  {
+                      "path":  "avatar-core/avatar-core.js",
+                      "sha256":  "2b51af4f7753c2cd10f714ab20d9603399e430cc56cb27d69697a402ba2ca3e8",
+                      "bytes":  1474
+                  },
+                  {
+                      "path":  "avatar-core/avatar-manifest.json",
+                      "sha256":  "29bc0e6a2684a642eec04c77a40fa3b72c5bf7855d9717b0ce5f2dde0d382fd6",
+                      "bytes":  1914
+                  },
+                  {
+                      "path":  "avatar-core/README_AVATARCORE.md",
+                      "sha256":  "51aac199d471095df7470b5abf6a92e400e8a723896ca4e1d06c006388814ce4",
+                      "bytes":  764
+                  },
+                  {
+                      "path":  "cores/audit-core/audit-core.js",
+                      "sha256":  "7ac7c43a2b88725b00e59b2fbf4e1df9b7774198bfb6e077719187798d074178",
+                      "bytes":  1404
+                  },
+                  {
+                      "path":  "cores/audit-core/README.md",
+                      "sha256":  "c7ea4de69c95f05e61ef78e48d9413bc984294e79893c05dcabe96f0f2b55114",
+                      "bytes":  272
+                  },
+                  {
+                      "path":  "cores/health-core/health-core.js",
+                      "sha256":  "1ec5a7eba72dbebdfb45f87569ec56c26aa093b1477e1cb41e95c19927f0747e",
+                      "bytes":  7582
+                  },
+                  {
+                      "path":  "cores/health-core/README.md",
+                      "sha256":  "13bef19e1b5d96a41105c132f18b74f713c6e2a7d6416df8e631dfe590943aa5",
+                      "bytes":  544
+                  },
+                  {
+                      "path":  "cores/message-core/message-core.js",
+                      "sha256":  "a84a22b9e2e368ea59838e0d58a2e5265706a32933ce734903f60e691edbd022",
+                      "bytes":  2914
+                  },
+                  {
+                      "path":  "cores/notification-core/notification-core.js",
+                      "sha256":  "1bf3719b79b0149feb6b88cb96d70ea7ba6c6960eaf28e27763010f071bdb447",
+                      "bytes":  1384
+                  },
+                  {
+                      "path":  "cores/notification-core/README.md",
+                      "sha256":  "468006182fe824b54d581201b3aaafd9cae2688aef38aca04f869c4bf7293e8c",
+                      "bytes":  266
+                  },
+                  {
+                      "path":  "cores/product-info-core/KC_PRODUCT_INFO_V1.schema.json",
+                      "sha256":  "00fe4fc01778e80bcade83c80471a1dd08dae3754712863ec5dc4274796a3edf",
+                      "bytes":  973
+                  },
+                  {
+                      "path":  "cores/product-info-core/product-info-core.js",
+                      "sha256":  "dfb7b6c6b5bff93d88bb5d1e19631e4bac16defd1cc810d2f7d75f5c8b77927e",
+                      "bytes":  2245
+                  },
+                  {
+                      "path":  "cores/product-info-core/README.md",
+                      "sha256":  "d5ed3b00ef0f8aa0ce80e2d49f315efb58d881290328a5fb108a44c09f526035",
+                      "bytes":  322
+                  },
+                  {
+                      "path":  "cores/security-core/crypto-secure-sync.js",
+                      "sha256":  "4f2b46d874d98459dbc35bd9e2acadd1153ae8e4490e73e7139c113c0964d301",
+                      "bytes":  3397
+                  },
+                  {
+                      "path":  "cores/security-core/README.md",
+                      "sha256":  "0d86f4f000a78c30039f9467ab9113ca13868cb0da2a7ff79326746a0bff9212",
+                      "bytes":  397
+                  },
+                  {
+                      "path":  "cores/security-core/security-core.js",
+                      "sha256":  "3261cb3367556e3fc9867a529c66c45727bf40a04cbdfe2c52bfaa19bb236b37",
+                      "bytes":  2456
+                  },
+                  {
+                      "path":  "cores/sound-core/README.md",
+                      "sha256":  "39d12111615093b265a4d6b89f204c48e3d5d74045d377c6b0bc2dc8eaab7bbd",
+                      "bytes":  594
+                  },
+                  {
+                      "path":  "cores/sound-core/sound-core.js",
+                      "sha256":  "995d22260ced67f5c9d027553228d10d68b131584cdbbd2fc9545357fc52085e",
+                      "bytes":  4939
+                  },
+                  {
+                      "path":  "exchange-core-v31/cash-package.schema.json",
+                      "sha256":  "dd432a5e73770c060de01e9cd80724afa7a174177b0bf88e6cc1acb5da14899d",
+                      "bytes":  1411
+                  },
+                  {
+                      "path":  "exchange-core-v31/config-package.schema.json",
+                      "sha256":  "ac162978c1c0197897d31f156e1b5e0e20f024c98daeeafd546a28d8a1b77c4b",
+                      "bytes":  1777
+                  },
+                  {
+                      "path":  "exchange-core-v31/event-package.schema.json",
+                      "sha256":  "b4b1821a1f3b64af7d630dc1ec23492d7ff6fd83547766f93090429401b43401",
+                      "bytes":  2004
+                  },
+                  {
+                      "path":  "exchange-core-v31/exchange-filter.js",
+                      "sha256":  "dc3fcd8edf609e2ac93067a2c52ffcaebc47f35677d8699d81440b54b721b709",
+                      "bytes":  8782
+                  },
+                  {
+                      "path":  "exchange-core-v31/README.md",
+                      "sha256":  "6dec5157a4bf8f9feea18186baa93f93a10f37f6b631bfd56782d7c2736180cd",
+                      "bytes":  400
+                  },
+                  {
+                      "path":  "index.html",
+                      "sha256":  "1309644950413c7401baf3f67f6a4022f5f56f80db1d4149c40a81fcc9ac8b65",
+                      "bytes":  1243
+                  },
+                  {
+                      "path":  "latest-release-manifest.json",
+                      "sha256":  "81007228b13c570f5b2f869bd9bb15b53d22f535cb359e5e9f55f7da4ac82a57",
+                      "bytes":  556
+                  },
+                  {
+                      "path":  "pc-manager/vendor/qrcode-generator.js",
+                      "sha256":  "18ae399f81182bc9de916e9c77b195df20cc58d6f2d55a62b085a299f1bf1780",
+                      "bytes":  56694
+                  },
+                  {
+                      "path":  "pos/app.js",
+                      "sha256":  "b9ee4e0da19789372b9fc7f934714ebe564524343ca18b6fb790255f6285518a",
+                      "bytes":  268801
+                  },
+                  {
+                      "path":  "pos/ARCHITEKTUR.md",
+                      "sha256":  "f5bd23737466460255781c45b89f7d47a6cb58618c5dd555e52391a943f631ac",
+                      "bytes":  1381
+                  },
+                  {
+                      "path":  "pos/assets/amaretto_auth.jpg",
+                      "sha256":  "8d312db19de70d0ab1eab64defabd63b94c3e2cae9b10e9bf68794d133d245e4",
+                      "bytes":  12576
+                  },
+                  {
+                      "path":  "pos/assets/apfelpunsch_auth.jpg",
+                      "sha256":  "1c4ebe4d720377f6d38e817fd9fd9287558ea6967bda523c33696d0411a5eaa0",
+                      "bytes":  10689
+                  },
+                  {
+                      "path":  "pos/assets/becher_auth.jpg",
+                      "sha256":  "0d2378e0a257ae06c06eeff316b5edbe322c45b3e8b53d1801d98b951c96e035",
+                      "bytes":  8678
+                  },
+                  {
+                      "path":  "pos/assets/bratwurst.jpg",
+                      "sha256":  "37e98b05e31cbd1602b5a0aa4ab84cd34a46b6f3cd9003ca798e5ac1c684653f",
+                      "bytes":  23536
+                  },
+                  {
+                      "path":  "pos/assets/brezel.jpg",
+                      "sha256":  "72714d01fec5d7c56f676d96589c501a13ecd5491fdfd95a500e8eb126d25ccb",
+                      "bytes":  22792
+                  },
+                  {
+                      "path":  "pos/assets/cappuccino.jpg",
+                      "sha256":  "e14927eba00e825f017a13f3a7da8590e973a00c988dddb2470c103c3cb92c11",
+                      "bytes":  19756
+                  },
+                  {
+                      "path":  "pos/assets/cola.jpg",
+                      "sha256":  "d1ffc0f1d866f7b608577c4eafb89c0d6311a0c2dddf671d6762951f4abb380a",
+                      "bytes":  15332
+                  },
+                  {
+                      "path":  "pos/assets/currywurst.jpg",
+                      "sha256":  "a012b3ca0949a7da1bd9d49aa6ea91dcc95f3ed9a8b7e1124ff45d92d8b50364",
+                      "bytes":  22969
+                  },
+                  {
+                      "path":  "pos/assets/eierlikoerpunsch_auth.jpg",
+                      "sha256":  "5e9d4e8c9a224bf248a731234b706b635a533129c8013a02d34e3455a94b73e7",
+                      "bytes":  8801
+                  },
+                  {
+                      "path":  "pos/assets/erbsensuppe.jpg",
+                      "sha256":  "60119736a762ffd5dd544154450931008e4aae14957c77efda85e69d22465b47",
+                      "bytes":  22475
+                  },
+                  {
+                      "path":  "pos/assets/fanta.jpg",
+                      "sha256":  "24f73acdcb557a19d60923deacaa923db14c53b41f23c7395261bb995393212d",
+                      "bytes":  16564
+                  },
+                  {
+                      "path":  "pos/assets/feuerzange_placeholder.svg",
+                      "sha256":  "ab25c38d637064ac9e6d0f149f46259fdf0320468c97d39c21f07958b75abe43",
+                      "bytes":  603
+                  },
+                  {
+                      "path":  "pos/assets/feuerzangenbowle_auth.jpg",
+                      "sha256":  "6ba4be45c985f85bf851e4e2960a2c527ca484c1781cd87fefccf36b044bb1ee",
+                      "bytes":  8817
+                  },
+                  {
+                      "path":  "pos/assets/gluehwein_rot.jpg",
+                      "sha256":  "4be2482fcd2b748fbc9058a5e2025cfc80dfa1db3faa17606c4675e03843e50b",
+                      "bytes":  24921
+                  },
+                  {
+                      "path":  "pos/assets/gluehwein_rot_auth.jpg",
+                      "sha256":  "5adcf7f5d637fa790f5cf58f2aa306e42a8bab6e9c743ebb709806c01e8b9c23",
+                      "bytes":  7065
+                  },
+                  {
+                      "path":  "pos/assets/gluehwein_weiss.jpg",
+                      "sha256":  "cb869a2edf026551905b1dbad68eff7f895c4a8be1f3992861c01c6cdf7f437a",
+                      "bytes":  24846
+                  },
+                  {
+                      "path":  "pos/assets/gluehwein_weiss_auth.jpg",
+                      "sha256":  "d689768c99b6af0a9342ab16ebf36bcd22c7fa2ad878c1d8447faef5f0f9cbec",
+                      "bytes":  8608
+                  },
+                  {
+                      "path":  "pos/assets/gruenkohl_auth.jpg",
+                      "sha256":  "90e4e9e72b6b2b27997a9acd1e896aa1b37163a200fbedce8ad4ea7ec5622a88",
+                      "bytes":  11514
+                  },
+                  {
+                      "path":  "pos/assets/gruenkohl_mettwurst_auth.jpg",
+                      "sha256":  "6408a84c19e30bc84182726df7cb63734524aeae7781841f4b2d0ce71d2d70c9",
+                      "bytes":  11836
+                  },
+                  {
+                      "path":  "pos/assets/kaffee.jpg",
+                      "sha256":  "b85562ab1bdcdae8aafe565bb31ca986d62bd9ae34a145e2652c0fdb8000b324",
+                      "bytes":  17771
+                  },
+                  {
+                      "path":  "pos/assets/kakao.jpg",
+                      "sha256":  "869e5b567bca5b31d41dcda1ea561d041da071959fc8662302052cd9a6df0eda",
+                      "bytes":  18067
+                  },
+                  {
+                      "path":  "pos/assets/kinderpunsch.jpg",
+                      "sha256":  "6b034e3229656d936be6b4d87c5fafb605c93f52f63ccf0088100eb89f8c7009",
+                      "bytes":  24023
+                  },
+                  {
+                      "path":  "pos/assets/logo.png",
+                      "sha256":  "b329a9f97b2563b516de5eaddb8c54f0a081b3feb7d6a816e67d7c8dac2a7e59",
+                      "bytes":  20064
+                  },
+                  {
+                      "path":  "pos/assets/pfand_bundle_placeholder.svg",
+                      "sha256":  "cc0d2ab23d46e1109ed29c3628690f82fcf8ff981634afa75e84cb5e59f37c5a",
+                      "bytes":  768
+                  },
+                  {
+                      "path":  "pos/assets/pfandglas_auth.jpg",
+                      "sha256":  "a50e5c8d98a809180520304046152611bfd4414ec8be009ba93b7282844ba412",
+                      "bytes":  11827
+                  },
+                  {
+                      "path":  "pos/assets/pommes.jpg",
+                      "sha256":  "8b16b54304b1455cfb94df0793fa8b2cdb3daf842e2c807867c9c56e26a76352",
+                      "bytes":  20569
+                  },
+                  {
+                      "path":  "pos/assets/sauerkraut_auth.jpg",
+                      "sha256":  "940dd49930f455b77fc4a0f5d35f5bb1625919450ab6062ec5586ce2d87ae49f",
+                      "bytes":  10426
+                  },
+                  {
+                      "path":  "pos/assets/sauerkraut_mettwurst_auth.jpg",
+                      "sha256":  "4e960e42008f947f1c2ca060e4f3b978cc5be41002f4b181bc3fc0be2e32f0d4",
+                      "bytes":  10447
+                  },
+                  {
+                      "path":  "pos/assets/schokolade.jpg",
+                      "sha256":  "e50aa0089d37333676017d0bc029ee67423833d3053683c8d28bedcd8489a1c3",
+                      "bytes":  21473
+                  },
+                  {
+                      "path":  "pos/assets/wasser.jpg",
+                      "sha256":  "1e02315d345cc16ac66eed5b82938d400f5978570a0f849749bfc63064fd2b05",
+                      "bytes":  15739
+                  },
+                  {
+                      "path":  "pos/cores/adaptive-layout-core/adaptive-layout-core.js",
+                      "sha256":  "cda20427a5d7e2746cccad54e1a4342a462bbf87e7e0a2e74e76eb856caf8564",
+                      "bytes":  2983
+                  },
+                  {
+                      "path":  "pos/cores/adaptive-layout-core/README.md",
+                      "sha256":  "7eace4dcd61cfa1c84cd53943d345426f4190605fce3379f4396169e178d67a0",
+                      "bytes":  130
+                  },
+                  {
+                      "path":  "pos/index.html",
+                      "sha256":  "cfb0ea539a19319aba3b498d16c919ddce4cb1c27c53d5dfcf8dea1726990510",
+                      "bytes":  81732
+                  },
+                  {
+                      "path":  "pos/manifest.webmanifest",
+                      "sha256":  "42a2d71fa88111aa992b26450ff0660c6a476f15751b89018547ec2a25a6498b",
+                      "bytes":  468
+                  },
+                  {
+                      "path":  "pos/README.md",
+                      "sha256":  "75eb8191d2090aeb4d579f9a62789aa80786419723ea57f04ea2d7eee82faabe",
+                      "bytes":  1509
+                  },
+                  {
+                      "path":  "pos/service-worker.js",
+                      "sha256":  "15d5cd69899df0e54423129850e3c7ea957d9587d3e3394c3132990d143086bb",
+                      "bytes":  1539
+                  },
+                  {
+                      "path":  "pos/sounds/kassenton.mp3",
+                      "sha256":  "ae6702f67ca39475db2f82ea71cb93e681049785813e12b0dd5b801485a45ee7",
+                      "bytes":  79412
+                  },
+                  {
+                      "path":  "pos/styles.css",
+                      "sha256":  "042f448a12218ec532289c19ed6a76941ddc055153dbd5e453aa362e633f0100",
+                      "bytes":  151983
+                  },
+                  {
+                      "path":  "pos/training-demo-bridge.js",
+                      "sha256":  "1ba0402b4e57a48b3c3b0b4ea6249cac06ddddcfb2ef2341a7dda7a6654e1650",
+                      "bytes":  15266
+                  },
+                  {
+                      "path":  "pos/version-manifest.json",
+                      "sha256":  "2d44b9e720f82715435ed73e32b0d90a15582c1c851cf992131319bdad47d797",
+                      "bytes":  381
+                  },
+                  {
+                      "path":  "shared/runtime-flags.js",
+                      "sha256":  "e881db8abf743200c2f7cc2fd9d7ec0c51542b0fb69a72e02b28c986de2af916",
+                      "bytes":  169
+                  },
+                  {
+                      "path":  "training-video/app.js",
+                      "sha256":  "270abf4486661265f5f25cf5d232627140ba0c1aa93c4efaa00f855719faf63d",
+                      "bytes":  55860
+                  },
+                  {
+                      "path":  "training-video/index.html",
+                      "sha256":  "ed434d977ea4b6cc11ca8ce58dffbef5f073783e08fdc26820ab58b264fb8065",
+                      "bytes":  21346
+                  },
+                  {
+                      "path":  "training-video/Koecheclub_Logo.webp",
+                      "sha256":  "4fe774307edf7e9c0bf11a0b6d8c6e01994a95a1d62dc0f22d3ef760eec8b5aa",
+                      "bytes":  99704
+                  },
+                  {
+                      "path":  "training-video/styles.css",
+                      "sha256":  "4fdd436e0e2ee2d57b0cc33e599624b7f1b019f1ccc5f49e0e2a663c265ec0b3",
+                      "bytes":  47426
+                  },
+                  {
+                      "path":  "training-video/training-playback-core.css",
+                      "sha256":  "234c460291e6d68ac4f9a3f112147300e7f79545350a38967c39ccfe705155c5",
+                      "bytes":  1019
+                  },
+                  {
+                      "path":  "training-video/training-playback-core.js",
+                      "sha256":  "1201557c9fed1eeb18ee3942dedb38583979c122a5f7f5600b1c34acac77b8d5",
+                      "bytes":  4172
+                  },
+                  {
+                      "path":  "training-video/training-version-manifest.json",
+                      "sha256":  "f5052dfb539e4706c043629ccbcf3a548971223d6cb8c3706d11f1be61c06ef7",
+                      "bytes":  476
+                  },
+                  {
+                      "path":  "training-video/version-sync-core.js",
+                      "sha256":  "d6f19257fc5010f5e75c0685751a8f4cdf5cd037876440352557d2683cfae278",
+                      "bytes":  3713
+                  }
+              ]
+}

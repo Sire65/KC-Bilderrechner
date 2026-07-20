@@ -1,0 +1,10 @@
+{
+  "schema": "KC_TRAINING_VERSION_MANIFEST_V1",
+  "product": "KC Bilderrechner – Interaktive Schulung",
+  "trainingVersion": "0.27.1",
+  "basedOnProductVersion": "0.31.3.6.11",
+  "supportedUiSchema": "0.31.3.6-r11-ui.1",
+  "compatibleProductRange": "0.31.3.6 Repair 11",
+  "status": "Candidate",
+  "change": "Wärmere Marc-Stimme, konsequente Du-/Sie-Anrede in beiden Geschichten, eigene Stimme je Figur, sofort wirksames Ton-aus und Vorlesesteuerung im Geschichtenkopf"
+}

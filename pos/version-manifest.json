@@ -1,0 +1,11 @@
+{
+  "schema": "KC_PRODUCT_VERSION_MANIFEST_V1",
+  "product": "KC Bilderrechner",
+  "version": "0.31.3.6.11",
+  "displayVersion": "V0.31.3.6 Repair 11",
+  "repair": 11,
+  "uiSchemaVersion": "0.31.3.6-r11-ui.1",
+  "buildDate": "2026-07-20",
+  "trainingCompatibility": "0.27.x",
+  "sourceRelease": "KC_MarktKasse_Suite_V0_31_3_6_Repair_11_StimmtSo_Message30_HappyHourFix_Candidate"
+}
