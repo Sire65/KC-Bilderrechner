@@ -6,6 +6,12 @@ global.localStorage=new LocalStorageMock();
 global.location={pathname:'/tests/'};
 global.document={getElementById(){return null},addEventListener(){},visibilityState:'visible'};
 global.addEventListener=()=>{};
+global.KCStorageVault={
+  ready:Promise.resolve(true),
+  async sealJson(value,aad=''){return {format:'TEST_AES_GCM',aad,data:Buffer.from(JSON.stringify(value)).toString('base64')}},
+  async openJson(wrapper,aad=''){assert.equal(wrapper.aad,aad);return JSON.parse(Buffer.from(wrapper.data,'base64').toString('utf8'))},
+  async setItemDurable(key,value){localStorage.setItem(key,value);return true}
+};
 const api=require('../cores/notification-core/notification-core.js');
 const sync=api.FailoverSync;
 const remote=new Map();
@@ -37,7 +43,7 @@ const tx=(id,hash=id)=>({transactionId:id,registerId:'KASSE-TEST',registerName:'
 (async()=>{
   localStorage.setItem('kc_transactions_v040',JSON.stringify([tx('T1'),tx('T2')]));
   assert.equal(await sync.enqueueMissing(),2);
-  let s=await sync.status();assert.equal(s.pending,2);
+  let s=await sync.status();assert.equal(s.pending,2);assert.equal(s.encryption,'AES-256-GCM');
   await sync.syncNow();s=await sync.status();assert.equal(s.pending,0);assert.equal(s.acked,2);assert.equal(remote.size,2);assert.equal(batches,1);
   await sync.syncNow();assert.equal(remote.size,2);assert.equal(batches,1,'replay must not duplicate or resend acked rows');
   remote.delete('T2');
@@ -45,6 +51,6 @@ const tx=(id,hash=id)=>({transactionId:id,registerId:'KASSE-TEST',registerName:'
   await sync.syncNow();assert.equal(remote.has('T2'),true);s=await sync.status();assert.equal(s.pending,0);
   const rows=JSON.parse(localStorage.getItem('kc_transactions_v040'));rows.push(tx('T3'));localStorage.setItem('kc_transactions_v040',JSON.stringify(rows));forceConflict='T3';await sync.syncNow();s=await sync.status();assert.equal(s.pending,1);assert.equal(s.conflicts,1);assert.equal(remote.has('T3'),false);
   forceConflict=null;
-  const st=await sync.selfTest();assert.equal(st.queuePersist,true);
-  console.log(JSON.stringify({status:'PASS',offlineQueue:true,restartDurabilityModel:true,replayIdempotent:true,reconcileRepair:true,conflictRetention:true,selfTest:st,batches,remote:remote.size}));
+  const st=await sync.selfTest();assert.equal(st.queuePersist,true);assert.equal(st.queueEncrypted,true);
+  console.log(JSON.stringify({status:'PASS',offlineQueue:true,encryptedQueue:true,replayIdempotent:true,reconcileRepair:true,conflictRetention:true,selfTest:st,batches,remote:remote.size}));
 })().catch(e=>{console.error(e);process.exit(1)});
