@@ -49,8 +49,6 @@ jobs:
         run: node tests/audit-core-redaction.test.cjs
       - name: Secure Sync envelope regression
         run: node tests/secure-sync-envelope.test.cjs
-      - name: TÜV security release gate
-        run: node tests/tuv-security-release-gate.test.cjs
       - name: Install test dependency
         run: npm install --no-save fake-indexeddb@6.2.2
       - name: Encrypted Local Vault regression
@@ -59,3 +57,5 @@ jobs:
         run: node tests/dual-gateway.test.cjs
       - name: Offline queue / replay / reconcile / conflict regression
         run: node tests/failover-sync.test.cjs
+      - name: TÜV security release gate
+        run: node tests/tuv-security-release-gate.test.cjs
