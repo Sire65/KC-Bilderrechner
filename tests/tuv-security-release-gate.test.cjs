@@ -16,6 +16,7 @@ const index = read('pos/index.html');
 const vault = read('pos/local-vault-bootstrap.js');
 const netlify = read('netlify.toml');
 const secureSync = read('cores/security-core/crypto-secure-sync.js');
+const notification = read('cores/notification-core/notification-core.js');
 
 const blockers = [];
 const warnings = [];
@@ -52,6 +53,17 @@ if (/function applyCashPayload\(/.test(app) && /function payloadChecksum\(/.test
 }
 if (/KCB-CHECK-1/.test(app) && !/(HMAC|subtle\.verify|signature)/i.test(around(app, 'function validatePosExchange', 7000))) {
   warnings.push('KCB-Konfigurations-/Austauschpakete nutzen eine Prüfsumme statt kryptografischer Herkunftsprüfung. Signatur/HMAC für vertrauenswürdige Manager-Pakete vorsehen.');
+}
+
+const reconcile = around(notification, 'async function reconcile()', 12000);
+if (reconcile && /missingLocal/.test(reconcile) && /setItemDurable/.test(reconcile) && !/(sha256|recordHash.*verify|inspectLedger|verifyTransaction)/i.test(reconcile)) {
+  blockers.push('Failover-Restore übernimmt Remote-Transaktionen in den lokalen Bestand, ohne deren Record-Hash/Prüfkette vor dem Merge nachzuweisen.');
+}
+if (reconcile && /transactionIds:list\.map/.test(reconcile) && !/(chunk|slice\([^\)]*5000|page|cursor)/i.test(reconcile)) {
+  warnings.push('Reconcile sendet die vollständige lokale ID-Liste unsegmentiert. Das kollidiert mit der Gateway-Grenze von 5000 IDs und muss paginiert/gechunkt werden.');
+}
+if (/setInterval\(kick,5000\)/.test(notification) && /await reconcile\(\)/.test(notification)) {
+  warnings.push('Failover-Sync läuft im 5-Sekunden-Takt und kann nach leerer Queue jedes Mal einen Voll-Reconcile auslösen; bei wachsendem Journal getrennt drosseln.');
 }
 
 if (!/AES-GCM/.test(vault) || !/extractable\s*:\s*false/.test(vault)) {
