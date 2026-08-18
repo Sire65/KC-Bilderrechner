@@ -5,7 +5,10 @@ on:
     branches: [main]
     paths:
       - 'cores/notification-core/notification-core.js'
+      - 'pos/local-vault-bootstrap.js'
+      - 'pos/service-worker.js'
       - 'tests/failover-sync.test.cjs'
+      - 'tests/local-vault.test.cjs'
       - '.github/workflows/failover-regression.yml'
   workflow_dispatch:
 
@@ -18,9 +21,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Syntax check
-        run: node --check cores/notification-core/notification-core.js
+      - name: Syntax checks
+        run: |
+          node --check cores/notification-core/notification-core.js
+          node --check pos/local-vault-bootstrap.js
+          node --check pos/service-worker.js
       - name: Install test dependency
         run: npm install --no-save fake-indexeddb@6.2.2
+      - name: Encrypted Local Vault regression
+        run: node tests/local-vault.test.cjs
       - name: Offline queue / replay / reconcile / conflict regression
         run: node tests/failover-sync.test.cjs
