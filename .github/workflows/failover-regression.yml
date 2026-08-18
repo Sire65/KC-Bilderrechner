@@ -5,12 +5,15 @@ on:
     branches: [main]
     paths:
       - 'cores/notification-core/notification-core.js'
+      - 'pos/app.js'
+      - 'pos/index.html'
       - 'pos/local-vault-bootstrap.js'
       - 'pos/dual-gateway-bootstrap.js'
       - 'pos/service-worker.js'
       - 'tests/failover-sync.test.cjs'
       - 'tests/local-vault.test.cjs'
       - 'tests/dual-gateway.test.cjs'
+      - 'tests/tuv-security-release-gate.test.cjs'
       - '.github/workflows/failover-regression.yml'
   workflow_dispatch:
 
@@ -29,6 +32,8 @@ jobs:
           node --check pos/local-vault-bootstrap.js
           node --check pos/dual-gateway-bootstrap.js
           node --check pos/service-worker.js
+      - name: TÜV security release gate
+        run: node tests/tuv-security-release-gate.test.cjs
       - name: Install test dependency
         run: npm install --no-save fake-indexeddb@6.2.2
       - name: Encrypted Local Vault regression
