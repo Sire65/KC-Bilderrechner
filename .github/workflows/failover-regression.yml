@@ -1,0 +1,26 @@
+name: KC Failover Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cores/notification-core/notification-core.js'
+      - 'tests/failover-sync.test.cjs'
+      - '.github/workflows/failover-regression.yml'
+  workflow_dispatch:
+
+jobs:
+  failover-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: node --check cores/notification-core/notification-core.js
+      - name: Install test dependency
+        run: npm install --no-save fake-indexeddb@6.2.2
+      - name: Offline queue / replay / reconcile / conflict regression
+        run: node tests/failover-sync.test.cjs
