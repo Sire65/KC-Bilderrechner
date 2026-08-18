@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'cores/notification-core/notification-core.js'
+      - 'cores/audit-core/audit-core.js'
+      - 'cores/security-core/security-core.js'
+      - 'cores/security-core/crypto-secure-sync.js'
       - 'pos/app.js'
       - 'pos/index.html'
       - 'pos/local-vault-bootstrap.js'
@@ -13,8 +16,12 @@ on:
       - 'tests/failover-sync.test.cjs'
       - 'tests/local-vault.test.cjs'
       - 'tests/dual-gateway.test.cjs'
+      - 'tests/audit-core-redaction.test.cjs'
+      - 'tests/secure-sync-envelope.test.cjs'
       - 'tests/tuv-security-release-gate.test.cjs'
       - '.github/workflows/failover-regression.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -29,9 +36,19 @@ jobs:
       - name: Syntax checks
         run: |
           node --check cores/notification-core/notification-core.js
+          node --check cores/audit-core/audit-core.js
+          node --check cores/security-core/security-core.js
+          node --check cores/security-core/crypto-secure-sync.js
           node --check pos/local-vault-bootstrap.js
           node --check pos/dual-gateway-bootstrap.js
           node --check pos/service-worker.js
+          node --check tests/audit-core-redaction.test.cjs
+          node --check tests/secure-sync-envelope.test.cjs
+          node --check tests/tuv-security-release-gate.test.cjs
+      - name: AuditCore secret redaction regression
+        run: node tests/audit-core-redaction.test.cjs
+      - name: Secure Sync envelope regression
+        run: node tests/secure-sync-envelope.test.cjs
       - name: TÜV security release gate
         run: node tests/tuv-security-release-gate.test.cjs
       - name: Install test dependency
