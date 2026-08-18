@@ -8,13 +8,27 @@ Diese Prüfspur darf den laufenden Produktionsstand nicht verändern. Änderunge
 
 1. `DEV_ADMIN_ACCESS=true` in `pos/app.js`.
 2. Sichtbarer Candidate-Entwicklerzugang `developerAdminLogin` in `pos/index.html`.
-3. Produktiver TSE-Adapter ist laut Architektur noch nicht vorhanden; fiskalische Freigabe daher separat offen.
-4. Failover-Gateway-Authentifizierung wird im Repository `KC-Failover-Gateway` separat geprüft und darf vor Security-Freigabe nicht als abgeschlossen gelten.
+3. Finanzielle Aktionen sind noch nicht durchgängig an den vorhandenen SecurityCore gebunden: Rabatt, Entnahme/Reklamationsauszahlung und Tagesabschluss besitzen im jeweiligen Ausführungsweg keine nachgewiesene `requirePermission(...)`-Prüfung.
+4. Der SecurityCore kennzeichnet bestimmte Rechte als Step-Up-pflichtig, der aktuelle `requirePermission`-Helper erzwingt diese Step-Up-Prüfung selbst noch nicht.
+5. `KCASH1`-Bargeld-QRs verwenden nur eine nicht-kryptografische Prüfsumme. Damit ist Beschädigung erkennbar, aber die Herkunft nicht authentifiziert; ein Angreifer kann prinzipiell einen formal korrekten QR selbst erzeugen.
+6. Failover-Restore/Reconcile übernimmt Remote-Transaktionen in den lokalen Bestand, ohne vor dem Merge die Record-Hashes/Prüfkette der empfangenen Daten nachzuweisen.
+7. Produktiver TSE-Adapter ist laut Architektur noch nicht vorhanden; fiskalische Freigabe daher separat offen.
+8. Failover-Gateway-Authentifizierung wird im Repository `KC-Failover-Gateway` separat geprüft und darf vor Security-Freigabe nicht als abgeschlossen gelten.
+
+## Weitere wichtige Befunde
+
+- `KCB-CHECK-1` schützt Austausch-/Konfigurationspakete nur mit einer Prüfsumme, nicht mit einer kryptografischen Herkunftsprüfung. Für vertrauenswürdige Manager-Pakete Signatur oder HMAC vorsehen.
+- Reconcile sendet die vollständige lokale Transaktions-ID-Liste unsegmentiert. Der aktuelle Gateway-Vertrag begrenzt die ID-Liste auf 5000; für größere Journale sind Chunking/Paginierung erforderlich.
+- Failover-Sync wird im 5-Sekunden-Takt angestoßen und kann nach leerer Queue erneut einen Voll-Reconcile auslösen. Bei wachsendem Journal sollte Reconcile separat gedrosselt und ereignisbasiert ausgeführt werden.
+- Die lokale Transaktions-Prüfkette ist gut geeignet, nachträgliche Änderungen zu erkennen, ist aber ohne externe Verankerung nicht gegen einen Angreifer geschützt, der den gesamten lokalen Datenbestand und alle Hashes neu schreiben kann.
+- Dynamische Katalog-/Warenkorbwerte werden teilweise über `innerHTML` aufgebaut. Importdaten werden an mehreren Stellen bereits bereinigt; die vollständige Stored-DOM-XSS-Kette ist trotzdem noch nicht abgeschlossen geprüft.
 
 ## Bereits eingeführte Abhilfe auf der Audit-Spur
 
-- Automatischer statischer Release-Gate-Test `tests/tuv-security-release-gate.test.cjs`.
-- CI beobachtet nun zusätzlich Änderungen an `pos/app.js`, `pos/index.html` und dem TÜV-Gate-Test.
+- Automatischer statischer Release-Gate-Test `tests/tuv-security-release-gate.test.cjs` wurde um Finanz-Autorisierung, Step-Up, Bargeld-QR-Herkunft, Restore-Integrität und Reconcile-Skalierung erweitert.
+- CI beobachtet POS-, SecurityCore-, AuditCore-, Local-Vault- und Failover-relevante Dateien und läuft auf der Audit-Spur auch bei Pull Requests gegen `main`.
+- `AuditCore` V0.2.1 entfernt nun zusätzlich Authorization-Header, API-Keys, Private Keys, Service-Role- und Recovery-Felder aus Audit-Metadaten. Regressionstest: `tests/audit-core-redaction.test.cjs`.
+- `KCSecureSync` V0.3.1 begrenzt PBKDF2-Iterationswerte und Paketgrößen und validiert Salt-/IV-Längen vor der teuren Entschlüsselung. Regressionstest: `tests/secure-sync-envelope.test.cjs`.
 - Ein Release wird vom Gate abgewiesen, solange der Entwickler-Bypass oder dessen sichtbare Schaltfläche vorhanden ist.
 - Dynamische Codeausführung über `eval()` oder `new Function()` wird als Release-Blocker erkannt.
 - Local-Vault-Kryptografie, ausgeschalteter Fiskalmodus, dynamische `innerHTML`-Datenwege sowie fehlende CSP/HSTS-Härtung werden als Prüfpunkte ausgewiesen.
@@ -43,6 +57,10 @@ Diese Prüfspur darf den laufenden Produktionsstand nicht verändern. Änderunge
 ## Nächste sichere Schritte
 
 - Entwickler-Bypass in einer isolierten Änderung entfernen und alle bestehenden Regressionstests ausführen.
+- Finanzielle Aktionen auf der Audit-Spur mit SecurityCore-Rechten und echter Step-Up-Prüfung kapseln; anschließend UI-/Regressionstest, bevor irgendein Merge diskutiert wird.
+- Bargeld-QR und Manager-Austauschpakete auf kryptografische Herkunftsprüfung umstellen; alte Formate nur kontrolliert migrieren.
+- Restore-Pfad mit Hash-/Kettenprüfung und Quarantäne für ungültige Remote-Datensätze versehen.
+- Reconcile paginieren/chunken und vom 5-Sekunden-Sync entkoppeln.
 - Danach UI-Test des Service-/Admin-Zugangs mit PIN und Superadmin-QR durchführen.
 - DOM-XSS-Datenwege von Manager/Import bis `innerHTML` vollständig nachverfolgen und dynamische Werte konsequent escapen bzw. mit DOM-APIs setzen.
 - Supabase-EXECUTE- und Cron-Grants nach Funktionsbedarf minimieren, aber erst nach Abhängigkeits-/Regressionstest.
