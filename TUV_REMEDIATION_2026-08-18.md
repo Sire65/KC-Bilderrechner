@@ -22,13 +22,21 @@ Diese Prüfspur darf den laufenden Produktionsstand nicht verändern. Änderunge
 - Failover-Sync wird im 5-Sekunden-Takt angestoßen und kann nach leerer Queue erneut einen Voll-Reconcile auslösen. Bei wachsendem Journal sollte Reconcile separat gedrosselt und ereignisbasiert ausgeführt werden.
 - Die lokale Transaktions-Prüfkette ist gut geeignet, nachträgliche Änderungen zu erkennen, ist aber ohne externe Verankerung nicht gegen einen Angreifer geschützt, der den gesamten lokalen Datenbestand und alle Hashes neu schreiben kann.
 - Dynamische Katalog-/Warenkorbwerte werden teilweise über `innerHTML` aufgebaut. Importdaten werden an mehreren Stellen bereits bereinigt; die vollständige Stored-DOM-XSS-Kette ist trotzdem noch nicht abgeschlossen geprüft.
+- Der Admin-Kontext setzt eine vorhandene `adminSession` beim Permission-Check wieder auf `valid:true`; eine feste maximale Sessiondauer bzw. Inaktivitätsablauf ist im geprüften Pfad nicht erkennbar.
+- Der lokale PIN-Schutz nutzt eine vierstellige PIN und sperrt nach fünf Fehlversuchen für 30 Sekunden. Für einen unbeaufsichtigten/gestohlenen Kassenclient sollte die Rate-Limit-/Step-Up-Strategie stärker und eskalierend ausgelegt werden.
+- Die PBKDF2-Iterationszahl der importierten Superadmin-PIN wird aus dem Freigabepaket übernommen; eine obere/untere Grenze ist im Loginpfad noch nicht erkennbar.
+- Dateiimporte lesen die gewählte Datei zunächst vollständig über `File.text()`. Eine explizite Vorabgrenze der Importdateigröße ist in den geprüften Pfaden nicht erkennbar.
+- `ProductInfoCore` kann einen Datensatz als `approved` akzeptieren, wenn Quelle und Freigabedatum gesetzt sind, auch wenn Big-14-Felder weiterhin `not-checked` sind. Das ist ein Datenqualitäts-/Freigabepunkt für Produkt- und Allergeninformationen.
 
 ## Bereits eingeführte Abhilfe auf der Audit-Spur
 
 - Automatischer statischer Release-Gate-Test `tests/tuv-security-release-gate.test.cjs` wurde um Finanz-Autorisierung, Step-Up, Bargeld-QR-Herkunft, Restore-Integrität und Reconcile-Skalierung erweitert.
-- CI beobachtet POS-, SecurityCore-, AuditCore-, Local-Vault- und Failover-relevante Dateien und läuft auf der Audit-Spur auch bei Pull Requests gegen `main`.
+- CI beobachtet POS-, SecurityCore-, AuditCore-, HealthCore-, Local-Vault-, Monitor- und Failover-relevante Dateien und läuft auf der Audit-Spur auch bei Pull Requests gegen `main`.
 - `AuditCore` V0.2.1 entfernt nun zusätzlich Authorization-Header, API-Keys, Private Keys, Service-Role- und Recovery-Felder aus Audit-Metadaten. Regressionstest: `tests/audit-core-redaction.test.cjs`.
+- `HealthCore` V1.0.1 redigiert Geheimnisse auch aus generischen Fehlertexten und sanitisiert den kompletten Diagnose-Status vor dem Export. Regressionstest: `tests/health-core-redaction.test.cjs`.
 - `KCSecureSync` V0.3.1 begrenzt PBKDF2-Iterationswerte und Paketgrößen und validiert Salt-/IV-Längen vor der teuren Entschlüsselung. Regressionstest: `tests/secure-sync-envelope.test.cjs`.
+- Der Failover-Monitor rendert externe Gateway-Statuswerte auf der Audit-Spur nicht mehr per `innerHTML`, sondern über `textContent`/DOM-Knoten. Regressionstest: `tests/failover-monitor-xss.test.cjs`.
+- Die CI führt alle normalen Regressionstests vor dem absichtlich strengen Release-Gate aus. Dadurch ist sichtbar, ob eine Audit-Härtung technisch sauber bleibt, obwohl die Freigabe wegen bekannter Blocker weiterhin rot ist.
 - Ein Release wird vom Gate abgewiesen, solange der Entwickler-Bypass oder dessen sichtbare Schaltfläche vorhanden ist.
 - Dynamische Codeausführung über `eval()` oder `new Function()` wird als Release-Blocker erkannt.
 - Local-Vault-Kryptografie, ausgeschalteter Fiskalmodus, dynamische `innerHTML`-Datenwege sowie fehlende CSP/HSTS-Härtung werden als Prüfpunkte ausgewiesen.
@@ -58,9 +66,11 @@ Diese Prüfspur darf den laufenden Produktionsstand nicht verändern. Änderunge
 
 - Entwickler-Bypass in einer isolierten Änderung entfernen und alle bestehenden Regressionstests ausführen.
 - Finanzielle Aktionen auf der Audit-Spur mit SecurityCore-Rechten und echter Step-Up-Prüfung kapseln; anschließend UI-/Regressionstest, bevor irgendein Merge diskutiert wird.
+- Admin-Sessiondauer, PIN-KDF-Grenzen und eskalierendes Rate-Limit zuerst im Audit-Zweig entwerfen und testen.
 - Bargeld-QR und Manager-Austauschpakete auf kryptografische Herkunftsprüfung umstellen; alte Formate nur kontrolliert migrieren.
 - Restore-Pfad mit Hash-/Kettenprüfung und Quarantäne für ungültige Remote-Datensätze versehen.
 - Reconcile paginieren/chunken und vom 5-Sekunden-Sync entkoppeln.
+- Importgrößen begrenzen und ProductInfo-Freigaberegeln gegen die fachlich tatsächlich erforderlichen Pflichtangaben testen.
 - Danach UI-Test des Service-/Admin-Zugangs mit PIN und Superadmin-QR durchführen.
 - DOM-XSS-Datenwege von Manager/Import bis `innerHTML` vollständig nachverfolgen und dynamische Werte konsequent escapen bzw. mit DOM-APIs setzen.
 - Supabase-EXECUTE- und Cron-Grants nach Funktionsbedarf minimieren, aber erst nach Abhängigkeits-/Regressionstest.
