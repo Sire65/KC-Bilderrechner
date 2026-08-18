@@ -8,6 +8,7 @@ on:
       - 'cores/audit-core/audit-core.js'
       - 'cores/security-core/security-core.js'
       - 'cores/security-core/crypto-secure-sync.js'
+      - 'pc-manager/failover-monitor.html'
       - 'pos/app.js'
       - 'pos/index.html'
       - 'pos/local-vault-bootstrap.js'
@@ -18,6 +19,7 @@ on:
       - 'tests/dual-gateway.test.cjs'
       - 'tests/audit-core-redaction.test.cjs'
       - 'tests/secure-sync-envelope.test.cjs'
+      - 'tests/failover-monitor-xss.test.cjs'
       - 'tests/tuv-security-release-gate.test.cjs'
       - '.github/workflows/failover-regression.yml'
   pull_request:
@@ -44,11 +46,14 @@ jobs:
           node --check pos/service-worker.js
           node --check tests/audit-core-redaction.test.cjs
           node --check tests/secure-sync-envelope.test.cjs
+          node --check tests/failover-monitor-xss.test.cjs
           node --check tests/tuv-security-release-gate.test.cjs
       - name: AuditCore secret redaction regression
         run: node tests/audit-core-redaction.test.cjs
       - name: Secure Sync envelope regression
         run: node tests/secure-sync-envelope.test.cjs
+      - name: Failover monitor XSS regression
+        run: node tests/failover-monitor-xss.test.cjs
       - name: Install test dependency
         run: npm install --no-save fake-indexeddb@6.2.2
       - name: Encrypted Local Vault regression
