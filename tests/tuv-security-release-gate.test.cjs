@@ -10,6 +10,7 @@ function read(rel) {
 const app = read('pos/app.js');
 const index = read('pos/index.html');
 const vault = read('pos/local-vault-bootstrap.js');
+const netlify = read('netlify.toml');
 
 const blockers = [];
 const warnings = [];
@@ -28,6 +29,15 @@ if (!/AES-GCM/.test(vault) || !/extractable\s*:\s*false/.test(vault)) {
 }
 if (/fiscalMode\s*:\s*["']off["']/.test(app)) {
   warnings.push('Fiskalmodus steht standardmäßig auf off; TSE/KassenSichV-Freigabe separat prüfen.');
+}
+if (/innerHTML\s*=/.test(app) && (/\$\{p\.name\}/.test(app) || /\$\{x\.name\}/.test(app) || /\$\{c\.label\}/.test(app))) {
+  warnings.push('Dynamische Katalog-/Warenkorbwerte werden teilweise per innerHTML aufgebaut; Stored-DOM-XSS-Datenwege vollständig prüfen und escapen.');
+}
+if (!/Content-Security-Policy/i.test(netlify)) {
+  warnings.push('Netlify-Konfiguration enthält noch keine Content-Security-Policy. CSP erst nach Kompatibilitätstest mit Service Worker/Inline-Code aktivieren.');
+}
+if (!/Strict-Transport-Security/i.test(netlify)) {
+  warnings.push('Netlify-Konfiguration enthält keinen expliziten HSTS-Header.');
 }
 
 console.log('KC TÜV Security Release Gate');
