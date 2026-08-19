@@ -6,9 +6,11 @@ const vm=require('node:vm');
 const corePath=path.join(__dirname,'..','pc-manager','free-monitor-core.js');
 const htmlPath=path.join(__dirname,'..','pc-manager','free-monitor.html');
 const livePath=path.join(__dirname,'..','pc-manager','free-monitor-live.js');
+const monitorPath=path.join(__dirname,'..','pc-manager','failover-monitor.html');
 const coreJs=fs.readFileSync(corePath,'utf8');
 const html=fs.readFileSync(htmlPath,'utf8');
 const liveJs=fs.readFileSync(livePath,'utf8');
+const monitorHtml=fs.readFileSync(monitorPath,'utf8');
 const C=require(corePath);
 
 // Rechenkern / Grenzwerte.
@@ -84,13 +86,16 @@ assert.ok(inline.length>=1,'Inline-Script fehlt');
 for(const code of inline)new vm.Script(code,{filename:'pc-manager/free-monitor.html'});
 new vm.Script(coreJs,{filename:'pc-manager/free-monitor-core.js'});
 new vm.Script(liveJs,{filename:'pc-manager/free-monitor-live.js'});
+const monitorInline=[...monitorHtml.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m=>m[1]).filter(s=>s.trim());
+assert.equal(monitorInline.length,1,'System- & Testcenter soll genau einen lokalen Scriptblock besitzen');
+for(const code of monitorInline)new vm.Script(code,{filename:'pc-manager/failover-monitor.html'});
 
 // Harte Architekturregel: Solange die spätere Automatik nicht bewusst aktiviert wurde,
 // bleibt die Manager-Seite lokal-only und lädt den Live-Adapter nicht selbst nach.
 assert.doesNotMatch(html,/free-monitor-live\.js/,'Live-Adapter darf vor Aktivierung nicht in HTML geladen werden');
 assert.doesNotMatch(coreJs,/createElement\s*\(\s*['"]script['"]|free-monitor-live\.js/,'Core darf den Live-Adapter nicht heimlich aktivieren');
 
-// Harte 0-Credit-Regel: Der aktive Manager startet keine Provider-Laufzeit oder kostenrelevante Cloud-Aktion.
+// Harte 0-Credit-Regel: Der aktive Free-Monitor startet keine Provider-Laufzeit oder kostenrelevante Cloud-Aktion.
 assert.doesNotMatch(html,/\bfetch\s*\(/,'HTML darf selbst keinen fetch ausführen');
 assert.doesNotMatch(html,/XMLHttpRequest|WebSocket|EventSource/,'HTML darf keine Hintergrund-Netzschnittstelle öffnen');
 assert.doesNotMatch(html,/\.netlify\/functions|workers\.dev|api\.supabase\.com|console\.neon\.tech\/api|api\.cloudflare\.com/i,'HTML darf keinen metered Provider-Pfad fest verdrahten');
@@ -107,4 +112,19 @@ assert.match(liveJs,/hostname!==['"]raw\.githubusercontent\.com['"]/,'Live-Adapt
 assert.match(liveJs,/snap\.stale!==undefined/,'stale-Status muss aus dem Snapshot übernommen werden');
 assert.match(liveJs,/isDuplicate\(/,'Snapshot-Historie braucht Dublettenschutz');
 
-console.log('PASS KC Free-Monitor deep regression: core, unknown/stale fail-closed, LIVE-SAFE, Studio UI, dormant sync and zero-credit architecture');
+// System- & Testcenter: keine versteckte Dauerlast, Cloudflare zuerst, Netlify nur Fallback/Extra-Prüfung.
+assert.match(monitorHtml,/FREE-SAFE:/,'Free-Safe-Hinweis im Testcenter fehlt');
+assert.doesNotMatch(monitorHtml,/setInterval\s*\(/,'Testcenter darf keine periodische Hintergrundabfrage starten');
+assert.match(monitorHtml,/makeTests\(\);renderHistory\(\);standbyB\(\);/,'Testcenter darf beim Öffnen keinen automatischen Gateway-Request auslösen');
+assert.match(monitorHtml,/if\(a\.ok\)\{standbyB\(\)\}else\{const b=await getJSON\(B\+'\/'/,'Netlify darf beim Systemcheck nur als Fallback nach Cloudflare-Ausfall laufen');
+const oneA=monitorHtml.indexOf("getJSON(`${A}/scenario/${id}`");
+const oneB=monitorHtml.indexOf("getJSON(`${B}/scenario/${id}`");
+assert.ok(oneA>=0&&oneB>oneA,'Einzeltests müssen Cloudflare vor Netlify verwenden');
+const matrixA=monitorHtml.indexOf("getJSON(A+'/supergau/server-matrix'");
+const matrixB=monitorHtml.indexOf("getJSON(B+'/supergau/server-matrix'");
+assert.ok(matrixA>=0&&matrixB>matrixA,'Gesamttests müssen Cloudflare vor Netlify verwenden');
+assert.match(monitorHtml,/credentials:'omit'/,'Gateway-Prüfungen dürfen keine Browser-Credentials mitsenden');
+assert.match(monitorHtml,/esc\(r\.body\?\.activeBackend/,'Remote Backendwerte müssen escaped werden');
+assert.match(monitorHtml,/esc\(r\.error\|\|r\.status/,'Remote Fehlermeldungen müssen escaped werden');
+
+console.log('PASS KC Manager deep regression: Free-Monitor core, unknown/stale fail-closed, LIVE-SAFE, Studio UI, dormant sync, zero-credit architecture and Free-Safe testcenter');
