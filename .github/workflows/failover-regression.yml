@@ -43,6 +43,7 @@ on:
       - 'tests/pos-financial-security.test.cjs'
       - 'tests/deep-system-consolidation.test.cjs'
       - 'tests/service-worker-offline-security.test.cjs'
+      - 'tests/requirements-studio-audit.test.cjs'
       - 'tests/tuv-security-release-gate.test.cjs'
       - '.github/workflows/failover-regression.yml'
   pull_request:
@@ -92,6 +93,7 @@ jobs:
           node --check tests/pos-financial-security.test.cjs
           node --check tests/deep-system-consolidation.test.cjs
           node --check tests/service-worker-offline-security.test.cjs
+          node --check tests/requirements-studio-audit.test.cjs
           node --check tests/tuv-security-release-gate.test.cjs
       - name: AuditCore secret redaction regression
         run: node tests/audit-core-redaction.test.cjs
@@ -125,6 +127,8 @@ jobs:
         run: node tests/deep-system-consolidation.test.cjs
       - name: Service worker offline security regression
         run: node tests/service-worker-offline-security.test.cjs
+      - name: Requirements and Studio audit
+        run: node tests/requirements-studio-audit.test.cjs
       - name: Install test dependency
         run: npm install --no-save fake-indexeddb@6.2.2
       - name: Encrypted Local Vault regression
