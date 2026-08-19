@@ -1,0 +1,128 @@
+name: Audit POS Financial Remediation
+
+on:
+  push:
+    branches:
+      - audit/tuv-hardening-2026-08-18
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    if: github.ref == 'refs/heads/audit/tuv-hardening-2026-08-18'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: audit/tuv-hardening-2026-08-18
+          fetch-depth: 0
+      - name: Apply isolated POS security remediation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          app_path=Path('pos/app.js')
+          index_path=Path('pos/index.html')
+          app=app_path.read_text(encoding='utf-8')
+          index=index_path.read_text(encoding='utf-8')
+
+          def replace_once(text,old,new,label):
+              if old in text:
+                  return text.replace(old,new,1)
+              if new in text:
+                  return text
+              raise SystemExit(f'PATCH_MARKER_MISSING: {label}')
+
+          app=replace_once(
+              app,
+              'const DEV_ADMIN_ACCESS=true; // CANDIDATE ONLY – vor Leading/Release zwingend entfernen',
+              'const DEV_ADMIN_ACCESS=false; // AUDIT HARDENING – kein Entwickler-Bypass im Releasepfad',
+              'DEV_ADMIN_ACCESS'
+          )
+
+          if 'function developerAdminLogin()' in app:
+              app,count=re.subn(r'\nfunction developerAdminLogin\(\)\{\n.*?\n\}\nasync function serviceLogin', '\nasync function serviceLogin', app, count=1, flags=re.S)
+              if count!=1: raise SystemExit('PATCH_FAILED: developerAdminLogin function')
+          app=app.replace('el("developerAdminLogin")?.addEventListener("click",developerAdminLogin);\n','')
+
+          if 'id="developerAdminLogin"' in index:
+              index,count=re.subn(r'\n\s*<div class="developer-access-box">.*?</div>\n', '\n', index, count=1, flags=re.S)
+              if count!=1: raise SystemExit('PATCH_FAILED: developer access box')
+
+          app=replace_once(
+              app,
+              'el("applyDiscountBtn").onclick=()=>{const percent=',
+              'el("applyDiscountBtn").onclick=()=>{if(!requirePermission("discount.apply"))return;const percent=',
+              'discount permission'
+          )
+          app=replace_once(
+              app,
+              'el("saveWithdrawal").onclick=async()=>{\n  const saveButton=',
+              'el("saveWithdrawal").onclick=async()=>{\n  if(!requirePermission("cash.withdraw"))return;\n  const saveButton=',
+              'withdraw permission'
+          )
+          app=replace_once(
+              app,
+              'function createClosing(){\n  const s=',
+              'function createClosing(){\n  if(!requirePermission("closing.execute"))return null;\n  const s=',
+              'closing permission'
+          )
+
+          old_require='''function requirePermission(permission,action){\n  const decision=window.KCSecurityCore?.decision(permission,securityContext())||{allowed:false,code:"SECURITY_CORE_UNAVAILABLE"};\n  if(!decision.allowed){appendAdminAudit(permission,"rejected",{message:decision.code});return false}\n  return typeof action==="function"?action(decision):true;\n}'''
+          new_require='''function requirePermission(permission,action){\n  const decision=window.KCSecurityCore?.decision(permission,securityContext())||{allowed:false,code:"SECURITY_CORE_UNAVAILABLE"};\n  if(!decision.allowed){\n    appendAdminAudit(permission,"rejected",{message:decision.code});\n    const message=decision.code==="STEP_UP_REQUIRED"?"Für diese Aktion ist eine frische PIN-/QR-Freigabe erforderlich.":decision.code==="NO_SESSION"?"Für diese Aktion ist eine autorisierte Anmeldung erforderlich.":"Diese Aktion ist für die aktuelle Rolle nicht freigegeben.";\n    setSystemHint(message,"warn");\n    return false;\n  }\n  return typeof action==="function"?action(decision):true;\n}'''
+          app=replace_once(app,old_require,new_require,'requirePermission feedback')
+
+          if 'const CASH_TRANSFER_SECRET_KEY="kc_cash_transfer_secret_v2";' not in app:
+              old='function decodeCashPayload(text){if(!text.startsWith("KCASH1:"))throw new Error("Ungültiger Bargeld-QR-Code");return JSON.parse(decodeURIComponent(escape(atob(text.slice(7)))))}'
+              new='''const CASH_TRANSFER_SECRET_KEY="kc_cash_transfer_secret_v2";\nconst CASH_TRANSFER_KEY_ID="markt-2026";\nasync function cashTransferSecret(){\n  const vault=window.KCStorageVault;\n  if(!vault?.ready||typeof vault.protectedKey!=="function"||!vault.protectedKey(CASH_TRANSFER_SECRET_KEY))throw new Error("Sicherer Bargeldschlüssel-Speicher ist nicht verfügbar");\n  await vault.ready;\n  const secret=String(localStorage.getItem(CASH_TRANSFER_SECRET_KEY)||"");\n  if(secret.length<32)throw new Error("Bargeldschlüssel ist noch nicht sicher provisioniert");\n  return secret;\n}\nasync function decodeCashPayload(text){\n  const raw=String(text||"").trim();\n  if(raw.startsWith("KCASH1:"))throw new Error("KCASH1-Altformat ist aus Sicherheitsgründen gesperrt – bitte einen KCASH2-Code verwenden");\n  const auth=window.KCCashTransferAuth;\n  if(!auth)throw new Error("KCASH2-Sicherheitsmodul ist nicht verfügbar");\n  const payload=auth.decode(raw);\n  const verification=await auth.verify(payload,{secret:await cashTransferSecret(),registerId:state.master.registerId,effectiveDate:localBusinessDate()});\n  if(!verification.ok)throw new Error(`KCASH2-Authentifizierung fehlgeschlagen (${verification.code})`);\n  return payload;\n}'''
+              app=replace_once(app,old,new,'KCASH2 decoder')
+
+          if 'async function applyCashPayload(text,source="unknown")' not in app:
+              pattern=r'function applyCashPayload\(text,source="unknown"\)\{\n  const p=decodeCashPayload\(text\);\n  if\(p\?\.format!=="KC_CASH_TRANSFER"\)[^\n]*\n  if\(!p\.checksum[^\n]*\n'
+              replacement='''async function applyCashPayload(text,source="unknown"){\n  const p=await decodeCashPayload(text);\n  if(p?.format!==window.KCCashTransferAuth?.FORMAT)throw new Error("Der Code ist keine authentifizierte KCASH2-Bargeldübergabe");\n'''
+              app,count=re.subn(pattern,replacement,app,count=1)
+              if count!=1: raise SystemExit('PATCH_FAILED: applyCashPayload KCASH2')
+
+          app=replace_once(
+              app,
+              'el("applyCashDeposit").onclick=()=>{try{const p=applyCashPayload(',
+              'el("applyCashDeposit").onclick=async()=>{try{const p=await applyCashPayload(',
+              'manual cash import await'
+          )
+          app=replace_once(
+              app,
+              'if(code.startsWith("KCASH1:")){try{const p=applyCashPayload(code,"hid-scanner");',
+              'if(code.startsWith("KCASH2:")||code.startsWith("KCASH1:")){try{const p=await applyCashPayload(code,"hid-scanner");',
+              'scanner KCASH2 await'
+          )
+
+          if 'async function kcCreateSharedCash()' not in app:
+              pattern=r'function kcCreateSharedCash\(\)\{.*?\n\}\n\n// Repair 11:'
+              replacement='''async function kcCreateSharedCash(){\n  const shared=el("sharedCashEnabled").checked,amount=Number(el("sharedCashAmount").value),regs=el("sharedCashRegisters").value.split(",").map(x=>x.trim()).filter(Boolean),date=el("sharedCashDate").value||localBusinessDate();\n  if(!amount||shared&&!regs.length)return;\n  const auth=window.KCCashTransferAuth;\n  if(!auth){el("sharedCashStatus").textContent="Fehler: KCASH2-Sicherheitsmodul nicht verfügbar";return}\n  try{\n    const createdAt=new Date().toISOString();\n    const p={format:auth.FORMAT,transferId:crypto.randomUUID(),type:"opening",scope:shared?"shared":"register",poolId:shared?`POOL-${date}-${payloadChecksum(regs.join("|"))}`:null,poolName:el("sharedCashName").value.trim(),registerId:shared?null:state.master.registerId,registerIds:shared?regs:undefined,effectiveDate:date,total:amount,breakdown:{[amount]:1},looseTotal:amount,rollTotal:0,note:shared?"Gemeinsamer Wechselgeldbestand für mehrere Kassen":"Kassenbezogener Anfangsbestand",createdAt,expiresAt:new Date(Date.now()+36*60*60*1000).toISOString()};\n    const signed=await auth.sign(p,{secret:await cashTransferSecret(),keyId:CASH_TRANSFER_KEY_ID});\n    el("sharedCashPayloadOut").value=auth.encode(signed);\n    el("sharedCashStatus").textContent=shared?`${money(amount)} gelten gemeinsam für ${regs.join(", ")}. KCASH2 ist kryptografisch authentifiziert und darf pro Kasse nur einmal übernommen werden.`:`${money(amount)} für ${state.master.registerId} · KCASH2 kryptografisch authentifiziert.`;\n  }catch(err){el("sharedCashPayloadOut").value="";el("sharedCashStatus").textContent=`Fehler: ${err.message}`}\n}\n\n// Repair 11:'''
+              app,count=re.subn(pattern,replacement,app,count=1,flags=re.S)
+              if count!=1: raise SystemExit('PATCH_FAILED: kcCreateSharedCash KCASH2')
+
+          app_path.write_text(app,encoding='utf-8')
+          index_path.write_text(index,encoding='utf-8')
+          PY
+
+          node --check pos/app.js
+          node tests/pos-financial-security.test.cjs
+      - name: Commit isolated remediation and remove one-shot workflow
+        shell: bash
+        run: |
+          git config user.name "KC TÜV Audit Bot"
+          git config user.email "kc-audit-bot@users.noreply.github.com"
+          git rm -f .github/workflows/audit-pos-remediation.yml
+          git add pos/app.js pos/index.html
+          if git diff --cached --quiet; then
+            echo "No remediation changes required."
+            exit 0
+          fi
+          git commit -m "TÜV: sechs POS-Releaseblocker isoliert härten"
+          git push origin HEAD:audit/tuv-hardening-2026-08-18
