@@ -34,6 +34,7 @@ assert.deepEqual(C.validateProviders([{id:'x',metrics:[{id:'a',used:1,limit:2}]}
 assert.ok(C.validateProviders([{id:'x',metrics:[{id:'a',used:-1,limit:2}]}]).length>0);
 
 const html=fs.readFileSync(path.join(__dirname,'..','pc-manager','free-monitor.html'),'utf8');
+const liveJs=fs.readFileSync(path.join(__dirname,'..','pc-manager','free-monitor-live.js'),'utf8');
 assert.match(html,/Strikter 0-Credit-Modus/);
 assert.match(html,/Tägliche lokale Auto-Prüfung/);
 assert.match(html,/Netlify/);
@@ -50,11 +51,19 @@ assert.match(html,/canvas id="columns"/);
 const inline=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m=>m[1]).filter(s=>s.trim());
 assert.ok(inline.length>=1,'Inline-Script fehlt');
 for(const code of inline)new vm.Script(code,{filename:'pc-manager/free-monitor.html'});
+new vm.Script(liveJs,{filename:'pc-manager/free-monitor-live.js'});
 
-// Harte Schutzregel: Dieses Modul selbst darf keine externen Requests auslösen.
-// So können tägliche und manuelle Prüfungen keine Netlify/Cloudflare/Supabase/Neon-Credits verbrauchen.
-assert.doesNotMatch(html,/\bfetch\s*\(/,'Free-Monitor darf im 0-Credit-Modus keinen fetch ausführen');
-assert.doesNotMatch(html,/XMLHttpRequest/,'Free-Monitor darf keine XHR-Netzabfrage ausführen');
-assert.doesNotMatch(html,/\.netlify\/functions|workers\.dev|api\.supabase\.com|console\.neon\.tech\/api/i,'Free-Monitor darf keinen metered Provider-Pfad fest verdrahten');
+// Harte Schutzregel: Der Manager selbst startet keine Provider-Laufzeit oder kostenrelevante Cloud-Aktion.
+assert.doesNotMatch(html,/\bfetch\s*\(/,'HTML darf selbst keinen fetch ausführen');
+assert.doesNotMatch(html,/XMLHttpRequest/,'HTML darf keine XHR-Netzabfrage ausführen');
+assert.doesNotMatch(html,/\.netlify\/functions|workers\.dev|api\.supabase\.com|console\.neon\.tech\/api|api\.cloudflare\.com/i,'HTML darf keinen metered Provider-Pfad fest verdrahten');
 
-console.log('PASS KC Free-Monitor logic, browser syntax, LIVE-SAFE forecast, charts and strict zero-credit network contract');
+// Der Live-Adapter darf genau einen read-only GitHub-Raw-Snapshot lesen und sonst keinen Provider direkt aufrufen.
+assert.match(liveJs,/https:\/\/raw\.githubusercontent\.com\/Sire65\/KC-Bilderrechner\/monitor-free-usage-data\/pc-manager\/free-monitor-live\.json/,'GitHub-Raw-Snapshot fehlt');
+const fetchCalls=[...liveJs.matchAll(/\bfetch\s*\(/g)].length;
+assert.equal(fetchCalls,1,'Live-Adapter darf genau einen Fetch-Pfad besitzen');
+assert.doesNotMatch(liveJs,/XMLHttpRequest|\.netlify\/functions|workers\.dev|api\.supabase\.com|console\.neon\.tech\/api|api\.cloudflare\.com/i,'Live-Adapter darf keinen Provider-Runtime-/Management-Endpunkt direkt aufrufen');
+assert.doesNotMatch(liveJs,/method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i,'Live-Adapter darf keine schreibende HTTP-Methode verwenden');
+assert.doesNotMatch(liveJs,/credentials\s*:\s*['"]include['"]/i,'Live-Adapter darf keine Browser-Credentials mitsenden');
+
+console.log('PASS KC Free-Monitor logic, browser syntax, LIVE-SAFE forecast, charts and zero-credit GitHub snapshot contract');
