@@ -7,6 +7,12 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "same-origin"
     Permissions-Policy = "camera=(self), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000"
+
+[[headers]]
+  for = "/pos/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-XsEvYQeI61UwT9Mz4WdasBY8eAeHqQfnMuYdrCWz23s=' 'sha256-Owm/lCf/SbWwnp8Ew9XHu7f7+ThzSKuOCaG/WOWU6a8='; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' https: wss:; worker-src 'self' blob:; manifest-src 'self'; child-src 'self' blob:; upgrade-insecure-requests"
 
 [[headers]]
   for = "/pos/index.html"

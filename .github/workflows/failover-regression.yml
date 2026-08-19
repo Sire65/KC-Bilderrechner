@@ -2,16 +2,53 @@ name: KC Failover Regression
 
 on:
   push:
-    branches: [main]
+    branches: [main, audit/tuv-hardening-2026-08-18]
     paths:
+      - 'DEEP_SYSTEM_AUDIT_2026-08-19.md'
       - 'cores/notification-core/notification-core.js'
+      - 'cores/audit-core/audit-core.js'
+      - 'cores/health-core/health-core.js'
+      - 'cores/security-core/security-core.js'
+      - 'cores/security-core/crypto-secure-sync.js'
+      - 'cores/product-info-core/product-info-core.js'
+      - 'cores/transaction-integrity-core/transaction-integrity-core.js'
+      - 'cores/cash-transfer-auth-core/cash-transfer-auth-core.js'
+      - 'cores/dom-safety-core/dom-safety-core.js'
+      - 'exchange-core-v31/exchange-auth.js'
+      - 'shared/runtime-flags.js'
+      - 'pc-manager/failover-monitor.html'
+      - 'pos/app.js'
+      - 'pos/index.html'
+      - 'pos/kcb-exchange-auth-bootstrap.js'
       - 'pos/local-vault-bootstrap.js'
+      - 'pos/vault-app-loader.js'
       - 'pos/dual-gateway-bootstrap.js'
       - 'pos/service-worker.js'
+      - 'netlify.toml'
       - 'tests/failover-sync.test.cjs'
       - 'tests/local-vault.test.cjs'
       - 'tests/dual-gateway.test.cjs'
+      - 'tests/audit-core-redaction.test.cjs'
+      - 'tests/health-core-redaction.test.cjs'
+      - 'tests/secure-sync-envelope.test.cjs'
+      - 'tests/security-core-stepup.test.cjs'
+      - 'tests/failover-monitor-xss.test.cjs'
+      - 'tests/dom-safety-core.test.cjs'
+      - 'tests/csp-policy.test.cjs'
+      - 'tests/product-info-approval.test.cjs'
+      - 'tests/runtime-bootstrap.test.cjs'
+      - 'tests/transaction-integrity-core.test.cjs'
+      - 'tests/cash-transfer-auth-core.test.cjs'
+      - 'tests/exchange-auth-core.test.cjs'
+      - 'tests/kcb-exchange-pos-bootstrap.test.cjs'
+      - 'tests/pos-financial-security.test.cjs'
+      - 'tests/deep-system-consolidation.test.cjs'
+      - 'tests/service-worker-offline-security.test.cjs'
+      - 'tests/requirements-studio-audit.test.cjs'
+      - 'tests/tuv-security-release-gate.test.cjs'
       - '.github/workflows/failover-regression.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -26,9 +63,73 @@ jobs:
       - name: Syntax checks
         run: |
           node --check cores/notification-core/notification-core.js
+          node --check cores/audit-core/audit-core.js
+          node --check cores/health-core/health-core.js
+          node --check cores/security-core/security-core.js
+          node --check cores/security-core/crypto-secure-sync.js
+          node --check cores/product-info-core/product-info-core.js
+          node --check cores/transaction-integrity-core/transaction-integrity-core.js
+          node --check cores/cash-transfer-auth-core/cash-transfer-auth-core.js
+          node --check cores/dom-safety-core/dom-safety-core.js
+          node --check exchange-core-v31/exchange-auth.js
+          node --check shared/runtime-flags.js
+          node --check pos/kcb-exchange-auth-bootstrap.js
           node --check pos/local-vault-bootstrap.js
+          node --check pos/vault-app-loader.js
           node --check pos/dual-gateway-bootstrap.js
           node --check pos/service-worker.js
+          node --check tests/audit-core-redaction.test.cjs
+          node --check tests/health-core-redaction.test.cjs
+          node --check tests/secure-sync-envelope.test.cjs
+          node --check tests/security-core-stepup.test.cjs
+          node --check tests/failover-monitor-xss.test.cjs
+          node --check tests/dom-safety-core.test.cjs
+          node --check tests/csp-policy.test.cjs
+          node --check tests/product-info-approval.test.cjs
+          node --check tests/runtime-bootstrap.test.cjs
+          node --check tests/transaction-integrity-core.test.cjs
+          node --check tests/cash-transfer-auth-core.test.cjs
+          node --check tests/exchange-auth-core.test.cjs
+          node --check tests/kcb-exchange-pos-bootstrap.test.cjs
+          node --check tests/pos-financial-security.test.cjs
+          node --check tests/deep-system-consolidation.test.cjs
+          node --check tests/service-worker-offline-security.test.cjs
+          node --check tests/requirements-studio-audit.test.cjs
+          node --check tests/tuv-security-release-gate.test.cjs
+      - name: AuditCore secret redaction regression
+        run: node tests/audit-core-redaction.test.cjs
+      - name: HealthCore diagnostic secret redaction regression
+        run: node tests/health-core-redaction.test.cjs
+      - name: Secure Sync envelope regression
+        run: node tests/secure-sync-envelope.test.cjs
+      - name: SecurityCore step-up regression
+        run: node tests/security-core-stepup.test.cjs
+      - name: Failover monitor XSS regression
+        run: node tests/failover-monitor-xss.test.cjs
+      - name: DOM safety regression
+        run: node tests/dom-safety-core.test.cjs
+      - name: CSP policy regression
+        run: node tests/csp-policy.test.cjs
+      - name: Product info approval regression
+        run: node tests/product-info-approval.test.cjs
+      - name: Runtime bootstrap regression
+        run: node tests/runtime-bootstrap.test.cjs
+      - name: Transaction integrity regression
+        run: node tests/transaction-integrity-core.test.cjs
+      - name: KCASH2 authenticity regression
+        run: node tests/cash-transfer-auth-core.test.cjs
+      - name: KCB exchange authenticity regression
+        run: node tests/exchange-auth-core.test.cjs
+      - name: KCB POS exchange integration regression
+        run: node tests/kcb-exchange-pos-bootstrap.test.cjs
+      - name: POS financial security regression
+        run: node tests/pos-financial-security.test.cjs
+      - name: Deep system consolidation regression
+        run: node tests/deep-system-consolidation.test.cjs
+      - name: Service worker offline security regression
+        run: node tests/service-worker-offline-security.test.cjs
+      - name: Requirements and Studio audit
+        run: node tests/requirements-studio-audit.test.cjs
       - name: Install test dependency
         run: npm install --no-save fake-indexeddb@6.2.2
       - name: Encrypted Local Vault regression
@@ -37,3 +138,5 @@ jobs:
         run: node tests/dual-gateway.test.cjs
       - name: Offline queue / replay / reconcile / conflict regression
         run: node tests/failover-sync.test.cjs
+      - name: TÜV security release gate
+        run: node tests/tuv-security-release-gate.test.cjs
