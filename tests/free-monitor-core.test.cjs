@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const vm=require('node:vm');
 const C=require('../pc-manager/free-monitor-core.js');
 
 assert.equal(C.percent(50,100),50);
@@ -46,10 +47,14 @@ assert.match(html,/canvas id="bars"/);
 assert.match(html,/canvas id="line"/);
 assert.match(html,/canvas id="columns"/);
 
+const inline=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m=>m[1]).filter(s=>s.trim());
+assert.ok(inline.length>=1,'Inline-Script fehlt');
+for(const code of inline)new vm.Script(code,{filename:'pc-manager/free-monitor.html'});
+
 // Harte Schutzregel: Dieses Modul selbst darf keine externen Requests auslösen.
 // So können tägliche und manuelle Prüfungen keine Netlify/Cloudflare/Supabase/Neon-Credits verbrauchen.
 assert.doesNotMatch(html,/\bfetch\s*\(/,'Free-Monitor darf im 0-Credit-Modus keinen fetch ausführen');
 assert.doesNotMatch(html,/XMLHttpRequest/,'Free-Monitor darf keine XHR-Netzabfrage ausführen');
 assert.doesNotMatch(html,/\.netlify\/functions|workers\.dev|api\.supabase\.com|console\.neon\.tech\/api/i,'Free-Monitor darf keinen metered Provider-Pfad fest verdrahten');
 
-console.log('PASS KC Free-Monitor logic, LIVE-SAFE forecast, charts and strict zero-credit network contract');
+console.log('PASS KC Free-Monitor logic, browser syntax, LIVE-SAFE forecast, charts and strict zero-credit network contract');
