@@ -111,6 +111,12 @@ assert.doesNotMatch(liveJs,/credentials\s*:\s*['"]include['"]/i,'Live-Adapter da
 assert.match(liveJs,/hostname!==['"]raw\.githubusercontent\.com['"]/,'Live-Adapter braucht eine feste Host-Allowlist');
 assert.match(liveJs,/snap\.stale!==undefined/,'stale-Status muss aus dem Snapshot übernommen werden');
 assert.match(liveJs,/isDuplicate\(/,'Snapshot-Historie braucht Dublettenschutz');
+assert.match(liveJs,/MAX_SNAPSHOT_BYTES=262144/,'Live-Snapshot braucht eine harte Größenobergrenze');
+assert.match(liveJs,/content-length/,'Content-Length muss vor dem Parsen geprüft werden');
+assert.match(liveJs,/if\(text\.length>MAX_SNAPSHOT_BYTES\)/,'Tatsächliche Snapshot-Größe muss ebenfalls geprüft werden');
+assert.doesNotMatch(liveJs,/await\s+r\.json\s*\(/,'Snapshot darf nicht ungeprüft direkt als JSON geparst werden');
+assert.match(liveJs,/if\(v===null\|\|v===undefined\|\|v===''\)return null/,'Live-Adapter darf null nicht als 0 übernehmen');
+assert.match(liveJs,/n>=0\?n:null/,'Live-Adapter darf keine negativen Verbrauchswerte übernehmen');
 
 // System- & Testcenter: keine versteckte Dauerlast, Cloudflare zuerst, Netlify nur Fallback/Extra-Prüfung.
 assert.match(monitorHtml,/FREE-SAFE:/,'Free-Safe-Hinweis im Testcenter fehlt');
@@ -127,4 +133,4 @@ assert.match(monitorHtml,/credentials:'omit'/,'Gateway-Prüfungen dürfen keine 
 assert.match(monitorHtml,/esc\(r\.body\?\.activeBackend/,'Remote Backendwerte müssen escaped werden');
 assert.match(monitorHtml,/esc\(r\.error\|\|r\.status/,'Remote Fehlermeldungen müssen escaped werden');
 
-console.log('PASS KC Manager deep regression: Free-Monitor core, unknown/stale fail-closed, LIVE-SAFE, Studio UI, dormant sync, zero-credit architecture and Free-Safe testcenter');
+console.log('PASS KC Manager deep regression: Free-Monitor core, unknown/stale fail-closed, LIVE-SAFE, bounded dormant sync, Studio UI, zero-credit architecture and Free-Safe testcenter');
