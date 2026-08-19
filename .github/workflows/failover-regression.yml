@@ -2,7 +2,7 @@ name: KC Failover Regression
 
 on:
   push:
-    branches: [main]
+    branches: [main, audit/tuv-hardening-2026-08-18]
     paths:
       - 'cores/notification-core/notification-core.js'
       - 'cores/audit-core/audit-core.js'
