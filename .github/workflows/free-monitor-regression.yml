@@ -6,6 +6,7 @@ on:
     paths:
       - 'pc-manager/free-monitor.html'
       - 'pc-manager/free-monitor-core.js'
+      - 'pc-manager/free-monitor-live.js'
       - 'pc-manager/failover-monitor.html'
       - 'tests/free-monitor-core.test.cjs'
       - '.github/workflows/free-monitor-regression.yml'
@@ -27,6 +28,7 @@ jobs:
       - name: Syntax check
         run: |
           node --check pc-manager/free-monitor-core.js
+          node --check pc-manager/free-monitor-live.js
           node --check tests/free-monitor-core.test.cjs
       - name: Free-Monitor zero-credit regression
         run: node tests/free-monitor-core.test.cjs
