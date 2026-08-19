@@ -1,6 +1,6 @@
 (()=>{
 "use strict";
-const VERSION="0.3.0";
+const VERSION="0.3.1";
 const ROLES=Object.freeze(["cashier","shiftlead","manager","admin","superadmin"]);
 const DEFAULT_SESSION_MAX_AGE_MS=30*60*1000;
 const DEFAULT_STEP_UP_MAX_AGE_MS=5*60*1000;
@@ -21,8 +21,8 @@ function normalizePolicy(policy={}){
  return{
   version:VERSION,
   grants,
-  stepUp:Array.from(new Set(policy.stepUp||["receipt.cancel","cash.withdraw","inventory.adjust","users.manage","settings.manage","protected.open"])),
-  reasonRequired:Array.from(new Set(policy.reasonRequired||["receipt.cancel","cash.withdraw","inventory.adjust"])),
+  stepUp:Array.from(new Set(policy.stepUp||["receipt.cancel","discount.apply","cash.withdraw","closing.execute","inventory.adjust","users.manage","settings.manage","protected.open"])),
+  reasonRequired:Array.from(new Set(policy.reasonRequired||["receipt.cancel","discount.apply","cash.withdraw","inventory.adjust"])),
   stepUpMethods:Array.from(new Set(policy.stepUpMethods||["pin","qr"])),
   sessionMaxAgeMs:boundedMs(policy.sessionMaxAgeMs,DEFAULT_SESSION_MAX_AGE_MS,60*1000,MAX_SESSION_MAX_AGE_MS),
   stepUpMaxAgeMs:boundedMs(policy.stepUpMaxAgeMs,DEFAULT_STEP_UP_MAX_AGE_MS,30*1000,MAX_STEP_UP_MAX_AGE_MS)
