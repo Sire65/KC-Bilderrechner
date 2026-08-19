@@ -58,10 +58,11 @@ if (!/STEP_UP_REQUIRED/.test(permissionHelper) || !/PIN-\/QR-Freigabe/.test(perm
   warnings.push('POS-Berechtigungshelper erklärt eine erforderliche Step-Up-Freigabe dem Bediener nicht eindeutig.');
 }
 
+const cashSecretArea = around(app, 'const CASH_TRANSFER_SECRET_KEY', 8000);
 const cashDecode = around(app, 'async function decodeCashPayload', 5000);
 const cashCreate = around(app, 'async function kcCreateSharedCash', 6500);
 const cashAuthRuntime = /cash-transfer-auth-core\/cash-transfer-auth-core\.js/.test(runtimeFlags);
-const cashSecretProtected = /CASH_TRANSFER_SECRET_KEY\s*=\s*["']kc_cash_transfer_secret_v2["']/.test(app) && /KCStorageVault/.test(cashDecode) && /protectedKey\(CASH_TRANSFER_SECRET_KEY\)/.test(cashDecode);
+const cashSecretProtected = /CASH_TRANSFER_SECRET_KEY\s*=\s*["']kc_cash_transfer_secret_v2["']/.test(cashSecretArea) && /KCStorageVault/.test(cashSecretArea) && /protectedKey\(CASH_TRANSFER_SECRET_KEY\)/.test(cashSecretArea);
 const cashVerify = /KCCashTransferAuth/.test(cashDecode) && /\.verify\(/.test(cashDecode) && /registerId:state\.master\.registerId/.test(cashDecode) && /effectiveDate:localBusinessDate\(\)/.test(cashDecode);
 const cashCreateAuthenticated = /\.sign\(/.test(cashCreate) && /\.encode\(/.test(cashCreate) && /expiresAt/.test(cashCreate);
 const legacyCashBlocked = /KCASH1:[^\n]{0,220}(gesperrt|Altformat)/i.test(cashDecode);
