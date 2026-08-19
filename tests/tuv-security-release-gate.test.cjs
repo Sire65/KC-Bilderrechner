@@ -21,6 +21,7 @@ const secureSync = read('cores/security-core/crypto-secure-sync.js');
 const notification = read('cores/notification-core/notification-core.js');
 const exchangeAuth = read('exchange-core-v31/exchange-auth.js');
 const exchangeBootstrap = read('pos/kcb-exchange-auth-bootstrap.js');
+const domSafety = read('cores/dom-safety-core/dom-safety-core.js');
 
 const blockers = [];
 const warnings = [];
@@ -87,6 +88,13 @@ if (/KCB-CHECK-1/.test(app)) {
   warnings.push('Der alte KCB-CHECK-1-Prüfsummenpfad ist im Legacy-App-Code noch physisch vorhanden. Der Audit-Runtimepfad überschreibt und sperrt ihn; vor finaler Produktionskonsolidierung sollte der tote Legacy-Code entfernt werden.');
 }
 
+const domSafetyRuntime=/dom-safety-core\/dom-safety-core\.js/.test(runtimeFlags)&&/KCDomSafety\?\.installed/.test(runtimeFlags);
+const domSafetyBeforeAppCores=runtimeFlags.indexOf('dom-safety-core.js')>=0&&runtimeFlags.indexOf('dom-safety-core.js')<runtimeFlags.indexOf('transaction-integrity-core.js');
+const domSafetyPolicy=/FORBIDDEN_TAGS/.test(domSafety)&&/name\.startsWith\('on'\)/.test(domSafety)&&/srcdoc/.test(domSafety)&&/javascript:/.test(domSafety)&&/data:text\/html/.test(domSafety)&&/Object\.defineProperty\(proto,'innerHTML'/.test(domSafety);
+if(!(domSafetyRuntime&&domSafetyBeforeAppCores&&domSafetyPolicy)){
+  blockers.push('Stored-DOM-XSS-Schutz ist nicht vor dem ersten POS-Render aktiv oder deckt ausführbare Tags/Attribute und unsichere URL-Schemata nicht vollständig ab.');
+}
+
 const dualGatewayWired=/dual-gateway-bootstrap\.js/.test(index)||/dual-gateway-bootstrap\.js/.test(runtimeFlags);
 const localVaultWired=/local-vault-bootstrap\.js/.test(index)||/local-vault-bootstrap\.js/.test(runtimeFlags);
 const txIntegrityWired=/transaction-integrity-core\.js/.test(index)||/transaction-integrity-core\.js/.test(runtimeFlags);
@@ -119,9 +127,6 @@ if (!/MAX_KDF_ITERATIONS/.test(secureSync) || !/MAX_CIPHERTEXT_BYTES/.test(secur
 }
 if (/fiscalMode\s*:\s*["']off["']/.test(app)) {
   warnings.push('Fiskalmodus steht standardmäßig auf off; TSE/KassenSichV-Freigabe separat prüfen.');
-}
-if (/innerHTML\s*=/.test(app) && (/\$\{p\.name\}/.test(app) || /\$\{x\.name\}/.test(app) || /\$\{c\.label\}/.test(app))) {
-  warnings.push('Dynamische Katalog-/Warenkorbwerte werden teilweise per innerHTML aufgebaut; Stored-DOM-XSS-Datenwege vollständig prüfen und escapen.');
 }
 if (!/Content-Security-Policy/i.test(netlify)) {
   warnings.push('Netlify-Konfiguration enthält noch keine Content-Security-Policy. CSP erst nach Kompatibilitätstest mit Service Worker/Inline-Code aktivieren.');
