@@ -23,7 +23,7 @@ const htmlRewriteArea=sw.slice(Math.max(0,sw.indexOf('navigationResponse')-1500)
 assert.doesNotMatch(htmlRewriteArea,/<script>(?!window\.onload)/i,'Service Worker erzeugt CSP-inkompatibles Inline-JavaScript im Navigations-HTML.');
 
 // Offline-Start muss fail-closed und versionsgebunden bleiben.
-assert.match(sw,/cache-control","no-store"|cache-control','Navigationsantwort muss no-store signalisieren.');
+assert.ok(sw.includes('headers.set("cache-control","no-store")'),'Navigationsantwort muss no-store signalisieren.');
 assert.match(sw,/caches\.delete/,'Alte Cache-Versionen müssen beim Aktivieren entfernt werden.');
 assert.match(sw,/self\.clients\.claim/,'Neuer Service Worker muss Clients kontrolliert übernehmen.');
 
