@@ -3,18 +3,12 @@
   const api=factory();
   if(typeof module==='object'&&module.exports)module.exports=api;
   if(root)root.KCFreeMonitorCore=api;
-  if(root?.document&&!root.document.querySelector('script[data-kc-free-live]')){
-    const s=root.document.createElement('script');
-    s.src='free-monitor-live.js';
-    s.async=true;
-    s.dataset.kcFreeLive='1';
-    root.document.head.appendChild(s);
-  }
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   const DAY=86400000;
   const DEFAULT_THRESHOLDS={warn:50,danger:75,critical:90};
 
   function num(v,fallback=null){
+    if(v===null||v===undefined||v==='')return fallback;
     const n=Number(v);
     return Number.isFinite(n)?n:fallback;
   }
@@ -43,8 +37,18 @@
   const rank={unknown:0,ok:1,warn:2,danger:3,critical:4};
   function providerRisk(provider,thresholds=DEFAULT_THRESHOLDS){
     if(provider?.blocked===true)return 'critical';
-    const risks=(provider?.metrics||[]).map(m=>metricRisk(m,thresholds));
-    return risks.reduce((a,b)=>rank[b]>rank[a]?b:a,'unknown');
+    if(provider?.stale===true)return 'unknown';
+    let worst='ok',seen=false,missingRequired=false;
+    for(const metric of provider?.metrics||[]){
+      seen=true;
+      const risk=metricRisk(metric,thresholds);
+      if(risk==='unknown'&&metric?.informational!==true)missingRequired=true;
+      if(rank[risk]>rank[worst])worst=risk;
+    }
+    if(!seen)return 'unknown';
+    if(rank[worst]>=rank.warn)return worst;
+    if(missingRequired)return 'unknown';
+    return worst;
   }
   function parseTime(v){
     if(!v)return null;
@@ -92,15 +96,20 @@
   function liveSafe(provider,history,opts={}){
     const liveDays=num(opts.liveDays,10),defaultReserve=num(opts.reservePct,20);
     if(provider?.blocked===true)return {safe:false,reason:'blocked',metrics:[]};
+    if(provider?.stale===true)return {safe:null,reason:'stale',metrics:[]};
     const details=(provider?.metrics||[]).filter(m=>num(m.limit)!==null).map(metric=>{
       const burn=dailyBurn(history,provider.id,metric.id,opts.windowDays||7);
       const reserve=metric.liveReservePct===undefined?defaultReserve:num(metric.liveReservePct,defaultReserve);
       return {metric,forecast:forecastMetric(metric,burn,liveDays,reserve)};
     });
     if(!details.length)return {safe:null,reason:'no-data',metrics:[]};
-    const known=details.filter(x=>x.forecast.known);
+    const required=details.filter(x=>x.metric?.informational!==true);
+    const scope=required.length?required:details;
+    const known=scope.filter(x=>x.forecast.known);
+    if(known.some(x=>x.forecast.safe===false))return {safe:false,reason:'forecast-limit',metrics:details};
+    if(scope.some(x=>!x.forecast.known))return {safe:null,reason:'missing-data',metrics:details};
     if(!known.length)return {safe:null,reason:'no-data',metrics:details};
-    return {safe:known.every(x=>x.forecast.safe),reason:known.every(x=>x.forecast.safe)?'ok':'forecast-limit',metrics:details};
+    return {safe:true,reason:'ok',metrics:details};
   }
   function snapshotFromProviders(providers,at=new Date().toISOString(),source='local'){
     const out=[];
@@ -117,6 +126,8 @@
     for(const m of copy.metrics||[])if(snapshot.metrics&&snapshot.metrics[m.id]!==undefined)m.used=num(snapshot.metrics[m.id],m.used);
     copy.lastUpdate=snapshot.at||copy.lastUpdate;
     copy.lastSource=snapshot.source||copy.lastSource;
+    if(snapshot.blocked!==undefined)copy.blocked=!!snapshot.blocked;
+    if(snapshot.stale!==undefined)copy.stale=!!snapshot.stale;
     return copy;
   }
   function dueDaily(lastRun,now=Date.now(),hours=24){
@@ -129,6 +140,7 @@
       if(!p?.id)errors.push('Provider ohne ID');
       else if(ids.has(p.id))errors.push(`Doppelte Provider-ID: ${p.id}`);
       else ids.add(p.id);
+      if(p?.stale!==undefined&&typeof p.stale!=='boolean')errors.push(`${p.id}: stale muss boolean sein`);
       const mids=new Set();
       for(const m of p?.metrics||[]){
         if(!m?.id)errors.push(`${p.id}: Metrik ohne ID`);
