@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "collectedAt": "2026-08-19T08:25:08Z",
+  "collector": "KC Free-Monitor read-only",
+  "providers": [
+    {
+      "providerId": "netlify",
+      "at": "2026-08-19T08:06:00Z",
+      "source": "Netlify billing email",
+      "blocked": true,
+      "stale": false,
+      "metrics": {
+        "credits": 300,
+        "operational": 0
+      },
+      "note": "Monthly credit allowance exhausted; 30 operational credits granted; production deploys paused."
+    },
+    {
+      "providerId": "supabase-core",
+      "at": "2026-08-19T08:25:00Z",
+      "source": "Supabase read-only database size",
+      "stale": false,
+      "metrics": {
+        "db": 42.18
+      }
+    },
+    {
+      "providerId": "supabase-futura",
+      "at": "2026-08-19T08:25:00Z",
+      "source": "Supabase read-only database size",
+      "stale": false,
+      "metrics": {
+        "db": 17.57
+      }
+    },
+    {
+      "providerId": "neon",
+      "at": "2026-08-19T08:25:08Z",
+      "source": "Neon project/branch metadata",
+      "stale": false,
+      "metrics": {
+        "storage": 0.035,
+        "transfer": 0.028
+      }
+    },
+    {
+      "providerId": "github",
+      "at": "2026-08-19T08:25:08Z",
+      "source": "GitHub repository metadata",
+      "stale": false,
+      "metrics": {
+        "actions": 0
+      }
+    },
+    {
+      "providerId": "cloudflare",
+      "at": "2026-08-19T08:25:08Z",
+      "source": "No account usage connector available",
+      "stale": true,
+      "metrics": {}
+    }
+  ]
+}
