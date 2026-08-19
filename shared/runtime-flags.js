@@ -8,11 +8,12 @@ window.KC_RUNTIME_FLAGS=Object.freeze({
  * derzeit nicht direkt ein. Dieser Loader nutzt den bereits vor app.js geladenen
  * runtime-flags-Einstieg, ohne main oder das Produktivdeployment zu verändern.
  *
- * Transaction-Integrity, KCASH2-Authentifizierung und Dual-Gateway werden parser-
- * synchron geladen. Die im <head> mit defer eingebundene NotificationCore sieht
- * damit den Digest-Core schon bei ihrer Initialisierung. Der Local Vault startet
- * nach der initialen POS-Hydrierung an DOMContentLoaded und migriert vorhandene
- * kc_*-Werte anschließend in den verschlüsselten IndexedDB-Vault.
+ * Transaction-Integrity, KCASH2-Authentifizierung, KCB-Austauschauthentifizierung
+ * und Dual-Gateway werden parser-synchron geladen. Die im <head> mit defer
+ * eingebundene NotificationCore sieht damit den Digest-Core schon bei ihrer
+ * Initialisierung. Der Local Vault startet nach der initialen POS-Hydrierung an
+ * DOMContentLoaded und migriert vorhandene kc_*-Werte anschließend in den
+ * verschlüsselten IndexedDB-Vault.
  */
 (function(root,doc){
   'use strict';
@@ -30,10 +31,33 @@ window.KC_RUNTIME_FLAGS=Object.freeze({
     else appendScript(src,id);
   }
 
+  const exchangeGuardIds=['exportKCExchangeSales','exportAdminChanges','selectKCExchangeImport','importKCExchangeFile'];
+  function exchangeGuard(event){
+    if(root.KCBExchangeAuthPOS?.ready===true)return;
+    event.preventDefault?.();event.stopImmediatePropagation?.();
+    const status=doc.getElementById('kcExchangePosStatus');if(status)status.textContent='KCB-Sicherheitsmodul noch nicht bereit – Austausch bleibt gesperrt.';
+  }
+  for(const id of exchangeGuardIds){
+    const node=doc.getElementById(id);if(!node)continue;
+    node.addEventListener(id==='importKCExchangeFile'?'change':'click',exchangeGuard,true);
+  }
+
   if(!root.KCTransactionIntegrity)parserSync('../cores/transaction-integrity-core/transaction-integrity-core.js','kcTransactionIntegrityBootstrap');
   if(!root.KCCashTransferAuth)parserSync('../cores/cash-transfer-auth-core/cash-transfer-auth-core.js','kcCashTransferAuthBootstrap');
+  if(!root.KCBExchangeAuth)parserSync('../exchange-core-v31/exchange-auth.js','kcExchangeAuthBootstrap');
+  parserSync('kcb-exchange-auth-bootstrap.js','kcExchangeAuthPosBootstrap');
   if(!root.KCDualGateway)parserSync('dual-gateway-bootstrap.js','kcDualGatewayBootstrap');
 
   const loadVault=()=>{if(!root.KCStorageVault)appendScript('local-vault-bootstrap.js','kcLocalVaultBootstrap')};
-  if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',loadVault,{once:true});else loadVault();
+  const verifyExchangeBootstrap=()=>{
+    if(root.KCBExchangeAuthPOS?.ready===true)return;
+    for(const id of exchangeGuardIds){const node=doc.getElementById(id);if(node)node.disabled=true}
+    const status=doc.getElementById('kcExchangePosStatus');if(status)status.textContent='KCB-Austausch aus Sicherheitsgründen gesperrt: Authentifizierungsmodul nicht aktiv.';
+  };
+  if(doc.readyState==='loading'){
+    doc.addEventListener('DOMContentLoaded',loadVault,{once:true});
+    doc.addEventListener('DOMContentLoaded',verifyExchangeBootstrap,{once:true});
+  }else{
+    loadVault();verifyExchangeBootstrap();
+  }
 })(window,document);
