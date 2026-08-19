@@ -22,6 +22,7 @@ on:
       - 'pos/local-vault-bootstrap.js'
       - 'pos/dual-gateway-bootstrap.js'
       - 'pos/service-worker.js'
+      - 'netlify.toml'
       - 'tests/failover-sync.test.cjs'
       - 'tests/local-vault.test.cjs'
       - 'tests/dual-gateway.test.cjs'
@@ -31,6 +32,7 @@ on:
       - 'tests/security-core-stepup.test.cjs'
       - 'tests/failover-monitor-xss.test.cjs'
       - 'tests/dom-safety-core.test.cjs'
+      - 'tests/csp-policy.test.cjs'
       - 'tests/product-info-approval.test.cjs'
       - 'tests/runtime-bootstrap.test.cjs'
       - 'tests/transaction-integrity-core.test.cjs'
@@ -76,6 +78,7 @@ jobs:
           node --check tests/security-core-stepup.test.cjs
           node --check tests/failover-monitor-xss.test.cjs
           node --check tests/dom-safety-core.test.cjs
+          node --check tests/csp-policy.test.cjs
           node --check tests/product-info-approval.test.cjs
           node --check tests/runtime-bootstrap.test.cjs
           node --check tests/transaction-integrity-core.test.cjs
@@ -96,6 +99,8 @@ jobs:
         run: node tests/failover-monitor-xss.test.cjs
       - name: DOM safety regression
         run: node tests/dom-safety-core.test.cjs
+      - name: CSP policy regression
+        run: node tests/csp-policy.test.cjs
       - name: Product info approval regression
         run: node tests/product-info-approval.test.cjs
       - name: Runtime bootstrap regression
