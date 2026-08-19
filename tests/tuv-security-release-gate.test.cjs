@@ -91,8 +91,9 @@ if (/KCB-CHECK-1/.test(app)) {
 const domSafetyRuntime=/dom-safety-core\/dom-safety-core\.js/.test(runtimeFlags)&&/KCDomSafety\?\.installed/.test(runtimeFlags);
 const domSafetyBeforeAppCores=runtimeFlags.indexOf('dom-safety-core.js')>=0&&runtimeFlags.indexOf('dom-safety-core.js')<runtimeFlags.indexOf('transaction-integrity-core.js');
 const domSafetyPolicy=/FORBIDDEN_TAGS/.test(domSafety)&&/name\.startsWith\('on'\)/.test(domSafety)&&/srcdoc/.test(domSafety)&&/javascript:/.test(domSafety)&&/data:text\/html/.test(domSafety)&&/Object\.defineProperty\(proto,'innerHTML'/.test(domSafety);
-if(!(domSafetyRuntime&&domSafetyBeforeAppCores&&domSafetyPolicy)){
-  blockers.push('Stored-DOM-XSS-Schutz ist nicht vor dem ersten POS-Render aktiv oder deckt ausführbare Tags/Attribute und unsichere URL-Schemata nicht vollständig ab.');
+const printWindowSafety=/sanitizeDocumentHtml/.test(domSafety)&&/nativeOpen/.test(domSafety)&&/doc\.write=/.test(domSafety)&&/PRINT_SCRIPT/.test(domSafety)&&/DANGEROUS_CSS/.test(domSafety);
+if(!(domSafetyRuntime&&domSafetyBeforeAppCores&&domSafetyPolicy&&printWindowSafety)){
+  blockers.push('Stored-DOM-XSS-Schutz ist nicht vor dem ersten POS-Render aktiv oder deckt ausführbare Tags/Attribute, unsichere URL-Schemata und Druckfenster-document.write nicht vollständig ab.');
 }
 
 const dualGatewayWired=/dual-gateway-bootstrap\.js/.test(index)||/dual-gateway-bootstrap\.js/.test(runtimeFlags);
