@@ -65,15 +65,18 @@ if (/KCB-CHECK-1/.test(app) && !/(HMAC|subtle\.verify|signature)/i.test(around(a
 
 const dualGatewayWired=/dual-gateway-bootstrap\.js/.test(index)||/dual-gateway-bootstrap\.js/.test(runtimeFlags);
 const localVaultWired=/local-vault-bootstrap\.js/.test(index)||/local-vault-bootstrap\.js/.test(runtimeFlags);
+const txIntegrityWired=/transaction-integrity-core\.js/.test(index)||/transaction-integrity-core\.js/.test(runtimeFlags);
 if(!dualGatewayWired)blockers.push('Der POS-Runtimepfad aktiviert den vorhandenen Dual-Gateway-Bootstrap nicht.');
 if(!localVaultWired)blockers.push('Der POS-Runtimepfad aktiviert den verschlüsselten Local Vault nicht.');
+if(!txIntegrityWired)blockers.push('Der POS-Runtimepfad lädt den TransactionIntegrityCore nicht vor dem Failover-Client.');
 const gatewayClientAuth=/HMAC/.test(notification)&&/x-kc-signature/.test(notification)&&/x-kc-device/.test(notification)&&/GATEWAY_DEVICE_NOT_PROVISIONED/.test(notification);
 if(!gatewayClientAuth)blockers.push('Failover-Client signiert Sync-/Restore-/Reconcile-Anfragen nicht mit einer fail-closed Geräteidentität.');
 if(!/LOCAL_VAULT_AUTH_UNAVAILABLE/.test(notification)||!/AUTH_SECRET_KEY/.test(notification))blockers.push('Gateway-Gerätegeheimnis ist im Failover-Client nicht zwingend an den verschlüsselten Local Vault gebunden.');
 
-const reconcile = around(notification, 'async function reconcile()', 12000);
-if (reconcile && /missingLocal/.test(reconcile) && /setItemDurable/.test(reconcile) && !/(sha256|recordHash.*verify|inspectLedger|verifyTransaction)/i.test(reconcile)) {
-  blockers.push('Failover-Restore übernimmt Remote-Transaktionen in den lokalen Bestand, ohne deren Record-Hash/Prüfkette vor dem Merge nachzuweisen.');
+const reconcile = around(notification, 'async function reconcile()', 14000);
+const restoreDigestVerified=/verifyRemoteTransactions\(received\)/.test(reconcile)&&/verifyDigest/.test(notification)&&/stripTransportDigest/.test(notification);
+if (reconcile && /missingLocal/.test(reconcile) && /setItemDurable/.test(reconcile) && !restoreDigestVerified) {
+  blockers.push('Failover-Restore übernimmt Remote-Transaktionen in den lokalen Bestand, ohne einen stabilen Inhaltsdigest vor dem Merge nachzuweisen.');
 }
 if (reconcile && /transactionIds:list\.map/.test(reconcile) && !/(chunk|slice\([^\)]*5000|page|cursor)/i.test(reconcile)) {
   warnings.push('Reconcile sendet die vollständige lokale ID-Liste unsegmentiert. Das kollidiert mit der Gateway-Grenze von 5000 IDs und muss paginiert/gechunkt werden.');
