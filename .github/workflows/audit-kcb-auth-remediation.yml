@@ -1,0 +1,263 @@
+name: Audit KCB Exchange Authentication Remediation
+
+on:
+  push:
+    branches:
+      - audit/tuv-hardening-2026-08-18
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    if: github.ref == 'refs/heads/audit/tuv-hardening-2026-08-18'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: audit/tuv-hardening-2026-08-18
+          fetch-depth: 0
+
+      - name: Apply isolated KCB HMAC remediation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          core = r'''(function(root,factory){
+  const api=factory(root);
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  root.KCBExchangeAuth=api;
+})(typeof globalThis!=='undefined'?globalThis:this,function(root){
+  'use strict';
+  const VERSION='1.0.0';
+  const AUTH_ALG='KCB-HMAC-SHA256-1';
+  const MAX_EVENT_AGE_MS=30*24*60*60*1000;
+  const CLOCK_SKEW_MS=5*60*1000;
+  const enc=new TextEncoder();
+
+  function normalize(value){
+    if(value===null)return null;
+    if(Array.isArray(value))return value.map(normalize);
+    const type=typeof value;
+    if(type==='string'||type==='boolean')return value;
+    if(type==='number'){
+      if(!Number.isFinite(value))throw new Error('EXCHANGE_NON_FINITE_NUMBER');
+      return Object.is(value,-0)?0:value;
+    }
+    if(type==='object'){
+      const out={};
+      for(const key of Object.keys(value).sort()){
+        const item=value[key];
+        if(item!==undefined)out[key]=normalize(item);
+      }
+      return out;
+    }
+    throw new Error('EXCHANGE_UNSUPPORTED_TYPE');
+  }
+  function canonical(envelope){
+    const copy=JSON.parse(JSON.stringify(envelope||{}));
+    const keyId=String(copy?.integrity?.keyId||'default').slice(0,120);
+    copy.integrity={algorithm:AUTH_ALG,keyId,value:''};
+    return JSON.stringify(normalize(copy));
+  }
+  const hex=bytes=>Array.from(bytes,x=>x.toString(16).padStart(2,'0')).join('');
+  const unhex=text=>/^[0-9a-f]{64}$/i.test(String(text||''))?Uint8Array.from(String(text).match(/../g),x=>parseInt(x,16)):null;
+  async function importKey(secret,usage){
+    if(!root.crypto?.subtle)throw new Error('EXCHANGE_CRYPTO_UNAVAILABLE');
+    if(String(secret||'').length<32)throw new Error('EXCHANGE_SECRET_TOO_SHORT');
+    return root.crypto.subtle.importKey('raw',enc.encode(String(secret)),{name:'HMAC',hash:'SHA-256'},false,[usage]);
+  }
+  function validateEnvelope(envelope,allowedSchemas=[]){
+    const errors=[];
+    if(!envelope||typeof envelope!=='object'||Array.isArray(envelope))return['ENVELOPE_INVALID'];
+    if(allowedSchemas.length&&!allowedSchemas.includes(envelope.schema))errors.push('SCHEMA_NOT_ALLOWED');
+    if(!/^[A-Za-z0-9._:-]{8,160}$/.test(String(envelope.packageId||'')))errors.push('PACKAGE_ID_INVALID');
+    if(!Date.parse(String(envelope.createdAt||'')))errors.push('CREATED_AT_INVALID');
+    if(envelope.validUntil!==undefined&&!Date.parse(String(envelope.validUntil||'')))errors.push('VALID_UNTIL_INVALID');
+    return errors;
+  }
+  async function sign(envelope,{secret,keyId='default'}={}){
+    const copy=JSON.parse(JSON.stringify(envelope||{}));
+    const errors=validateEnvelope(copy);if(errors.length)throw new Error(errors[0]);
+    copy.integrity={algorithm:AUTH_ALG,keyId:String(keyId||'default').slice(0,120),value:''};
+    const key=await importKey(secret,'sign');
+    copy.integrity.value=hex(new Uint8Array(await root.crypto.subtle.sign('HMAC',key,enc.encode(canonical(copy)))));
+    return copy;
+  }
+  async function verify(envelope,{secret,allowedSchemas=[],now=Date.now()}={}){
+    const errors=validateEnvelope(envelope,allowedSchemas);if(errors.length)return{ok:false,code:errors[0]};
+    if(envelope?.integrity?.algorithm!==AUTH_ALG)return{ok:false,code:'AUTH_ALGORITHM_INVALID'};
+    if(!/^[A-Za-z0-9._:-]{1,120}$/.test(String(envelope?.integrity?.keyId||'')))return{ok:false,code:'AUTH_KEY_ID_INVALID'};
+    const signature=unhex(envelope?.integrity?.value);if(!signature)return{ok:false,code:'AUTH_SIGNATURE_INVALID'};
+    let key;try{key=await importKey(secret,'verify')}catch(error){return{ok:false,code:error.message||'AUTH_KEY_INVALID'}}
+    const valid=await root.crypto.subtle.verify('HMAC',key,signature,enc.encode(canonical(envelope)));
+    if(!valid)return{ok:false,code:'AUTH_SIGNATURE_MISMATCH'};
+    const created=Date.parse(envelope.createdAt);
+    if(now<created-CLOCK_SKEW_MS)return{ok:false,code:'CREATED_AT_IN_FUTURE'};
+    if(envelope.schema==='KCB-CONFIG-1'){
+      if(!envelope.validUntil)return{ok:false,code:'VALID_UNTIL_REQUIRED'};
+      if(now>Date.parse(envelope.validUntil))return{ok:false,code:'PACKAGE_EXPIRED'};
+    }else if(now>created+MAX_EVENT_AGE_MS)return{ok:false,code:'PACKAGE_TOO_OLD'};
+    return{ok:true,code:'OK',keyId:String(envelope.integrity.keyId)};
+  }
+  return Object.freeze({VERSION,AUTH_ALG,MAX_EVENT_AGE_MS,CLOCK_SKEW_MS,canonical,validateEnvelope,sign,verify});
+});
+'''
+          core_path=Path('exchange-core-v31/exchange-auth.js')
+          core_path.write_text(core,encoding='utf-8')
+
+          test = r'''\'use strict\';
+const assert=require('node:assert/strict');
+const {webcrypto}=require('node:crypto');
+if(!globalThis.crypto)globalThis.crypto=webcrypto;
+const auth=require('../exchange-core-v31/exchange-auth.js');
+
+(async()=>{
+  const secret='kcb-audit-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const now=Date.now();
+  const envelope={schema:'KCB-CONFIG-1',packageId:'PKG-12345678',createdAt:new Date(now-1000).toISOString(),validUntil:new Date(now+3600000).toISOString(),targetId:'KASSE-01',payload:{articles:[{id:'A1',name:'Test',price:5.5}]}};
+  const signed=await auth.sign(envelope,{secret,keyId:'KASSE-01:v1'});
+  assert.equal(signed.integrity.algorithm,auth.AUTH_ALG);
+  assert.match(signed.integrity.value,/^[0-9a-f]{64}$/);
+  assert.deepEqual(await auth.verify(signed,{secret,allowedSchemas:['KCB-CONFIG-1'],now}),{ok:true,code:'OK',keyId:'KASSE-01:v1'});
+
+  const tampered=structuredClone(signed);tampered.payload.articles[0].price=1;
+  assert.equal((await auth.verify(tampered,{secret,allowedSchemas:['KCB-CONFIG-1'],now})).code,'AUTH_SIGNATURE_MISMATCH');
+
+  const legacy=structuredClone(signed);legacy.integrity={algorithm:'KCB-CHECK-1',value:'deadbeef'};
+  assert.equal((await auth.verify(legacy,{secret,allowedSchemas:['KCB-CONFIG-1'],now})).code,'AUTH_ALGORITHM_INVALID');
+
+  const expired=await auth.sign({...envelope,packageId:'PKG-EXPIRED1',validUntil:new Date(now-1000).toISOString()},{secret,keyId:'KASSE-01:v1'});
+  assert.equal((await auth.verify(expired,{secret,allowedSchemas:['KCB-CONFIG-1'],now})).code,'PACKAGE_EXPIRED');
+
+  await assert.rejects(()=>auth.sign(envelope,{secret:'short'}),/EXCHANGE_SECRET_TOO_SHORT/);
+  console.log('PASS KCB exchange packages use HMAC-SHA-256, reject tampering, legacy checksums, expired packages and weak secrets');
+})().catch(error=>{console.error(error);process.exit(1)});
+'''
+          Path('tests/exchange-auth-core.test.cjs').write_text(test,encoding='utf-8')
+
+          runtime_path=Path('shared/runtime-flags.js')
+          runtime=runtime_path.read_text(encoding='utf-8')
+          marker="  if(!root.KCCashTransferAuth)parserSync('../cores/cash-transfer-auth-core/cash-transfer-auth-core.js','kcCashTransferAuthBootstrap');\n"
+          addition=marker+"  if(!root.KCBExchangeAuth)parserSync('../exchange-core-v31/exchange-auth.js','kcExchangeAuthBootstrap');\n"
+          if "kcExchangeAuthBootstrap" not in runtime:
+              if marker not in runtime: raise SystemExit('PATCH_MARKER_MISSING: runtime exchange auth')
+              runtime=runtime.replace(marker,addition,1)
+          runtime_path.write_text(runtime,encoding='utf-8')
+
+          app_path=Path('pos/app.js')
+          app=app_path.read_text(encoding='utf-8')
+          start=app.find('const POS_EXCHANGE_USED_KEY="kc_pos_exchange_used";')
+          end=app.find('el("exportKCExchangeSales").onclick=async()=>{',start)
+          if start<0 or end<0: raise SystemExit('PATCH_MARKER_MISSING: KCB exchange block')
+          new_block=r'''const POS_EXCHANGE_USED_KEY="kc_pos_exchange_used";
+const KCB_EXCHANGE_SECRET_KEY="kc_exchange_secret_v2";
+const KCB_EXCHANGE_KEY_ID="markt-2026";
+async function exchangeAuthSecret(){
+  const vault=window.KCStorageVault;
+  if(!vault?.ready||typeof vault.protectedKey!=="function"||!vault.protectedKey(KCB_EXCHANGE_SECRET_KEY))throw new Error("Sicherer Austauschschlüssel-Speicher ist nicht verfügbar");
+  await vault.ready;
+  const secret=String(localStorage.getItem(KCB_EXCHANGE_SECRET_KEY)||"");
+  if(secret.length<32)throw new Error("Austauschschlüssel ist noch nicht sicher provisioniert");
+  return secret;
+}
+async function sealExchangePackage(pkg){
+  const auth=window.KCBExchangeAuth;
+  if(!auth)throw new Error("KCB-Herkunftsauthentifizierung ist nicht verfügbar");
+  const keyId=`${KCB_EXCHANGE_KEY_ID}:${state.master.registerId||"KASSE-01"}`;
+  return auth.sign(pkg,{secret:await exchangeAuthSecret(),keyId});
+}
+async function buildPosExchangeSales(){
+  const source={transactions:readTransactions(),trainingTransactions:readTrainingTransactions(),tips:tipRecords(),withdrawals:safeArray(WITHDRAWAL_KEY),discountAudit:safeArray("kc_discount_audit_v020"),cashMovements:JSON.parse(localStorage.getItem("kc_cash_movements")||"[]"),closings:JSON.parse(localStorage.getItem("kc_closings")||"[]")};
+  return sealExchangePackage({schema:"KCB-EVENT-1",packageId:crypto.randomUUID(),sourceId:state.master.registerId||"KASSE-01",createdAt:new Date().toISOString(),events:KCBExchange.buildEventPayload(source)});
+}
+async function buildPosAdminChangeSet(){
+  const changes=adminChanges(),changedGroupIds=new Set(),changedArticleIds=new Set(),settingsChanged=changes.some(change=>change.entity==="settings"),displayProfileChanged=changes.some(change=>change.entity==="display-profile");
+  changes.forEach(change=>{if(change.entity==="group")changedGroupIds.add(change.entityId);if(change.entity==="article")changedArticleIds.add(change.entityId)});
+  const payload=KCBExchange.cleanConfigPayload({groups:GROUPS.filter(group=>changedGroupIds.has(group.id)),articles:PRODUCTS.filter(article=>changedArticleIds.has(article.id)),settings:settingsChanged?state.master:undefined});
+  if(displayProfileChanged)payload.settings={...(payload.settings||{}),displayProfile:{buttonSize:displayProfile.buttonSize,buttonMode:displayProfile.buttonMode,showPrice:displayProfile.showPrice}};
+  return sealExchangePackage({schema:"KCB-CONFIG-1",packageId:crypto.randomUUID(),createdAt:new Date().toISOString(),validUntil:new Date(Date.now()+30*86400000).toISOString(),targetId:"EXTERNAL-CONFIG",payload});
+}
+async function validatePosExchange(pkg){
+  if(pkg?.format==="KC_EXCHANGE_PACKAGE")return ["Unsicheres Legacy-Austauschpaket ohne kryptografische Herkunftsprüfung ist gesperrt"];
+  const errors=KCBExchange.validateEnvelope(pkg,["KCB-CONFIG-1","KCB-EVENT-1"]);
+  const auth=window.KCBExchangeAuth;
+  if(!auth){errors.push("KCB-Herkunftsauthentifizierung nicht verfügbar");return errors}
+  let secret;try{secret=await exchangeAuthSecret()}catch(error){errors.push(error.message||"Austauschschlüssel nicht verfügbar");return errors}
+  const verification=await auth.verify(pkg,{secret,allowedSchemas:["KCB-CONFIG-1","KCB-EVENT-1"],now:Date.now()});
+  if(!verification.ok)errors.push(`Kryptografische Herkunftsprüfung fehlgeschlagen (${verification.code})`);
+  const used=JSON.parse(localStorage.getItem(POS_EXCHANGE_USED_KEY)||"[]");if(used.includes(pkg?.packageId))errors.push("Paket bereits importiert");
+  return errors;
+}
+'''
+          app=app[:start]+new_block+app[end:]
+          replacements={
+            'const pkg=buildPosExchangeSales();':'const pkg=await buildPosExchangeSales();',
+            'const pkg=buildPosAdminChangeSet();':'const pkg=await buildPosAdminChangeSet();',
+            'const errors=validatePosExchange(pkg);if(errors.length)':'const errors=await validatePosExchange(pkg);if(errors.length)'
+          }
+          for old,new in replacements.items():
+              if old not in app: raise SystemExit(f'PATCH_MARKER_MISSING: {old}')
+              app=app.replace(old,new,1)
+          app_path.write_text(app,encoding='utf-8')
+
+          runtime_test_path=Path('tests/runtime-bootstrap.test.cjs')
+          runtime_test=runtime_test_path.read_text(encoding='utf-8')
+          marker="assert.match(source,/cash-transfer-auth-core\\.js/,'KCASH2-Authentifizierungs-Bootstrap fehlt.');\n"
+          if "KCB-Austausch-Authentifizierungs-Bootstrap fehlt" not in runtime_test:
+              if marker not in runtime_test: raise SystemExit('PATCH_MARKER_MISSING: runtime test')
+              runtime_test=runtime_test.replace(marker,marker+"assert.match(source,/exchange-auth\\.js/,'KCB-Austausch-Authentifizierungs-Bootstrap fehlt.');\n",1)
+          runtime_test_path.write_text(runtime_test,encoding='utf-8')
+
+          wf_path=Path('.github/workflows/failover-regression.yml')
+          wf=wf_path.read_text(encoding='utf-8')
+          if "exchange-core-v31/exchange-auth.js" not in wf:
+              wf=wf.replace("      - 'cores/cash-transfer-auth-core/cash-transfer-auth-core.js'\n","      - 'cores/cash-transfer-auth-core/cash-transfer-auth-core.js'\n      - 'exchange-core-v31/exchange-auth.js'\n",1)
+              wf=wf.replace("      - 'tests/cash-transfer-auth-core.test.cjs'\n","      - 'tests/cash-transfer-auth-core.test.cjs'\n      - 'tests/exchange-auth-core.test.cjs'\n",1)
+              wf=wf.replace("          node --check cores/cash-transfer-auth-core/cash-transfer-auth-core.js\n","          node --check cores/cash-transfer-auth-core/cash-transfer-auth-core.js\n          node --check exchange-core-v31/exchange-auth.js\n",1)
+              wf=wf.replace("          node --check tests/cash-transfer-auth-core.test.cjs\n","          node --check tests/cash-transfer-auth-core.test.cjs\n          node --check tests/exchange-auth-core.test.cjs\n",1)
+              wf=wf.replace("      - name: KCASH2 authenticity regression\n        run: node tests/cash-transfer-auth-core.test.cjs\n","      - name: KCASH2 authenticity regression\n        run: node tests/cash-transfer-auth-core.test.cjs\n      - name: KCB exchange authenticity regression\n        run: node tests/exchange-auth-core.test.cjs\n",1)
+          wf_path.write_text(wf,encoding='utf-8')
+
+          gate_path=Path('tests/tuv-security-release-gate.test.cjs')
+          gate=gate_path.read_text(encoding='utf-8')
+          old="if (/KCB-CHECK-1/.test(app) && !/(HMAC|subtle\\.verify|signature)/i.test(around(app, 'function validatePosExchange', 7000))) {\n  warnings.push('KCB-Konfigurations-/Austauschpakete nutzen eine Prüfsumme statt kryptografischer Herkunftsprüfung. Signatur/HMAC für vertrauenswürdige Manager-Pakete vorsehen.');\n}\n"
+          new="const exchangeAuthSource=read('exchange-core-v31/exchange-auth.js');\nconst exchangeArea=around(app, 'const KCB_EXCHANGE_SECRET_KEY', 14000);\nconst exchangeAuthenticated=/KCB-Herkunftsauthentifizierung/.test(exchangeArea)&&/exchangeAuthSecret/.test(exchangeArea)&&/await auth\\.verify/.test(exchangeArea)&&/KCB_EXCHANGE_SECRET_KEY\\s*=\\s*[\"']kc_exchange_secret_v2[\"']/.test(exchangeArea)&&/KCB-HMAC-SHA256-1/.test(exchangeAuthSource)&&/subtle\\.verify/.test(exchangeAuthSource);\nif(!exchangeAuthenticated)blockers.push('KCB-Konfigurations-/Austauschpakete sind nicht vollständig kryptografisch authentifiziert und fail-closed angebunden.');\n"
+          if old not in gate: raise SystemExit('PATCH_MARKER_MISSING: KCB gate warning')
+          gate=gate.replace(old,new,1)
+          gate_path.write_text(gate,encoding='utf-8')
+
+          doc_path=Path('TUV_REMEDIATION_2026-08-18.md')
+          doc=doc_path.read_text(encoding='utf-8')
+          doc=doc.replace('Der aktuelle TÜV-Gate-Lauf meldet noch vier Warnungen, aber keine Blocker:','Der aktuelle TÜV-Gate-Lauf meldet nach der KCB-Härtung noch drei Warnungen, aber keine Blocker:',1)
+          old_bullet='- `KCB-CHECK-1` schützt Austausch-/Konfigurationspakete weiterhin nur mit einer Prüfsumme statt einer kryptografischen Herkunftsprüfung. Für vertrauenswürdige Manager-Pakete ist Signatur oder HMAC vorzusehen.\n'
+          if old_bullet in doc: doc=doc.replace(old_bullet,'',1)
+          anchor='## Bereits eingeführte und getestete Abhilfe auf der Audit-Spur\n\n'
+          addition='- `KCBExchangeAuth` V1.0.0 authentifiziert `KCB-CONFIG-1` und `KCB-EVENT-1` mit HMAC-SHA-256 (`KCB-HMAC-SHA256-1`). Manipulierte, abgelaufene und checksum-only Legacy-Pakete werden fail-closed abgelehnt. Der Schlüssel `kc_exchange_secret_v2` muss vor Rollout pro Sicherheitskonzept im Local Vault provisioniert und mit dem externen Manager abgestimmt werden. Regression: `tests/exchange-auth-core.test.cjs`.\n'
+          if 'KCBExchangeAuth` V1.0.0' not in doc:
+              if anchor not in doc: raise SystemExit('PATCH_MARKER_MISSING: remediation doc')
+              doc=doc.replace(anchor,anchor+addition,1)
+          doc_path.write_text(doc,encoding='utf-8')
+          PY
+
+          node --check exchange-core-v31/exchange-auth.js
+          node --check pos/app.js
+          node --check shared/runtime-flags.js
+          node --check tests/exchange-auth-core.test.cjs
+          node tests/exchange-auth-core.test.cjs
+          node tests/runtime-bootstrap.test.cjs
+          node tests/pos-financial-security.test.cjs
+          node tests/tuv-security-release-gate.test.cjs
+
+      - name: Commit isolated remediation and remove one-shot workflow
+        shell: bash
+        run: |
+          git config user.name "KC TÜV Audit Bot"
+          git config user.email "kc-audit-bot@users.noreply.github.com"
+          git rm -f .github/workflows/audit-kcb-auth-remediation.yml
+          git add exchange-core-v31/exchange-auth.js tests/exchange-auth-core.test.cjs shared/runtime-flags.js pos/app.js tests/runtime-bootstrap.test.cjs .github/workflows/failover-regression.yml tests/tuv-security-release-gate.test.cjs TUV_REMEDIATION_2026-08-18.md
+          git commit -m "TÜV: KCB-Austauschpakete kryptografisch authentifizieren"
+          git push origin HEAD:audit/tuv-hardening-2026-08-18
