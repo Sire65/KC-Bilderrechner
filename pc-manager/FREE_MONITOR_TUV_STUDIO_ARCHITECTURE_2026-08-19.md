@@ -53,6 +53,12 @@ Remote gelieferte Backend-/Fehlertexte wurden teilweise direkt in HTML-Zeichenke
 
 **Geschlossen:** Remote-Backend- und Fehlerwerte werden vor der HTML-Ausgabe escaped. Browser-Credentials werden bei Gateway-Prüfungen nicht mitgesendet.
 
+### 7. Vorbereiteter Snapshot-Adapter war bei Eingabedaten zu großzügig
+
+Ein später aktivierter Snapshot-Adapter hätte einen großen Raw-Response direkt parsen können. Außerdem konnte ein `null`-Metrikwert über `Number(null)` erneut als 0 interpretiert werden.
+
+**Geschlossen:** Der dormante Adapter besitzt jetzt eine harte Snapshot-Grenze von 256 KiB, prüft `Content-Length` und tatsächliche Textlänge, akzeptiert nur nichtnegative echte Zahlen und übernimmt `null`/leer nicht als Verbrauch. Quelle und Notizen werden zusätzlich längenbegrenzt.
+
 ## Regressions-Gate
 
 Der automatisierte Test `tests/free-monitor-core.test.cjs` prüft jetzt unter anderem:
@@ -72,12 +78,14 @@ Der automatisierte Test `tests/free-monitor-core.test.cjs` prüft jetzt unter an
 - keine POST/PUT/PATCH/DELETE-Aufrufe im Live-Adapter.
 - Host-Allowlist auf `raw.githubusercontent.com`.
 - Snapshot-Dublettenschutz und stale-Übernahme.
+- Snapshot-Größenlimit 256 KiB und keine ungeprüfte direkte `r.json()`-Übernahme.
+- `null`/negative Werte werden vom Snapshot-Adapter nicht als Verbrauch übernommen.
 - System-/Testcenter besitzt kein periodisches Polling.
 - Systemprüfung und Super-GAU-Tests verwenden Cloudflare vor Netlify.
 - Netlify wird beim Systemcheck nur nach Cloudflare-Ausfall automatisch angesprochen.
 - Remote-Statuswerte im Testcenter werden escaped.
 
-Letzter geprüfter Workflow-Lauf nach der Konsolidierung: **SUCCESS**.
+Letzter Code-Workflow-Lauf nach der Konsolidierung: **SUCCESS**.
 
 ## Zielarchitektur
 
@@ -138,6 +146,7 @@ vorbereiteter Live-Adapter
 - manuelle Wertepflege möglich, falls ein Anbieter keinen kostenlosen Usage-Zugriff liefert
 - Export/Import für lokale Sicherung
 - klare Trennung zwischen Free-Monitor und Super-GAU-Testcenter
+- sichtbarer Free-Safe-Hinweis im Testcenter statt verstecktem Polling
 
 ### Restwarnungen – keine aktuellen Release-Blocker
 
