@@ -6,6 +6,8 @@ const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'..','shared','runtime-flags.js'),'utf8');
 
 assert.match(source,/\(\^\|\\\/\)pos\(\\\/\|\$\)/i,'Bootstrap muss auf POS-Pfad begrenzt sein.');
+assert.match(source,/dom-safety-core\.js/,'DOM-Safety-Bootstrap fehlt.');
+assert.match(source,/KCDomSafety\?\.installed/,'DOM-Safety-Installation muss vor dem POS-Render geprüft werden.');
 assert.match(source,/transaction-integrity-core\.js/,'Transaction-Integrity-Bootstrap fehlt.');
 assert.match(source,/cash-transfer-auth-core\.js/,'KCASH2-Authentifizierungs-Bootstrap fehlt.');
 assert.match(source,/exchange-auth\.js/,'KCB-Austausch-Authentifizierungs-Core fehlt.');
@@ -13,9 +15,12 @@ assert.match(source,/kcb-exchange-auth-bootstrap\.js/,'KCB-POS-Authentifizierung
 assert.match(source,/exchangeGuard/,'KCB-Austausch muss bis zum erfolgreichen Bootstrap fail-closed gesperrt sein.');
 assert.match(source,/dual-gateway-bootstrap\.js/,'Dual-Gateway-Bootstrap fehlt.');
 assert.match(source,/local-vault-bootstrap\.js/,'Local-Vault-Bootstrap fehlt.');
-assert.match(source,/parserSync/,'Integritäts-, Authentifizierungs- und Gateway-Cores müssen vor den defer-POS-Skripten verfügbar sein.');
+assert.match(source,/parserSync/,'DOM-Safety, Integritäts-, Authentifizierungs- und Gateway-Cores müssen vor den defer-POS-Skripten verfügbar sein.');
 assert.match(source,/DOMContentLoaded/,'Local Vault soll erst nach initialer POS-Hydrierung starten.');
 assert.doesNotMatch(source,/https?:\/\//i,'Bootstrap darf keine externen Scriptquellen laden.');
 assert.doesNotMatch(source,/\beval\s*\(|new\s+Function\s*\(/,'Bootstrap darf keinen dynamischen Code ausführen.');
 
-console.log('PASS POS runtime bootstrap wires transaction integrity, KCASH2 auth, KCB exchange auth, dual gateway and encrypted local vault from self origin');
+const domPos=source.indexOf('dom-safety-core.js'),txPos=source.indexOf('transaction-integrity-core.js');
+assert.ok(domPos>=0&&txPos>=0&&domPos<txPos,'DOM-Safety muss vor den übrigen POS-Runtime-Cores geladen werden.');
+
+console.log('PASS POS runtime bootstrap wires DOM safety, transaction integrity, KCASH2 auth, KCB exchange auth, dual gateway and encrypted local vault from self origin');
