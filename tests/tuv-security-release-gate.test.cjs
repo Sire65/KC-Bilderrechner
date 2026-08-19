@@ -15,6 +15,7 @@ const app = read('pos/app.js');
 const index = read('pos/index.html');
 const vault = read('pos/local-vault-bootstrap.js');
 const netlify = read('netlify.toml');
+const securityCore = read('cores/security-core/security-core.js');
 const secureSync = read('cores/security-core/crypto-secure-sync.js');
 const notification = read('cores/notification-core/notification-core.js');
 
@@ -44,8 +45,14 @@ if (closingHandler && !/requirePermission\(["']closing\.execute["']/.test(closin
   blockers.push('Tagesabschluss ist im Erzeugungsweg nicht an closing.execute gebunden.');
 }
 const permissionHelper = around(app, 'function requirePermission', 1600);
-if (permissionHelper && /requiresStepUp/.test(read('cores/security-core/security-core.js')) && !/requiresStepUp/.test(permissionHelper)) {
-  blockers.push('SecurityCore markiert Step-Up-Pflichten, requirePermission erzwingt sie aber derzeit nicht.');
+const stepUpDeclared = /requiresStepUp/.test(securityCore);
+const stepUpEnforcedInHelper = /requiresStepUp/.test(permissionHelper);
+const stepUpEnforcedInCore = /STEP_UP_REQUIRED/.test(securityCore) && /stepUpSatisfied/.test(securityCore);
+if (permissionHelper && stepUpDeclared && !stepUpEnforcedInHelper && !stepUpEnforcedInCore) {
+  blockers.push('SecurityCore markiert Step-Up-Pflichten, aber weder Core noch requirePermission erzwingen sie.');
+}
+if (!/SESSION_EXPIRED/.test(securityCore) || !/sessionMaxAgeMs/.test(securityCore)) {
+  warnings.push('Admin-/SecurityCore-Sitzungen besitzen keinen eindeutig nachweisbaren maximalen Session-Zeitraum.');
 }
 
 if (/function applyCashPayload\(/.test(app) && /function payloadChecksum\(/.test(app) && !/(HMAC|subtle\.verify|subtle\.sign)/.test(around(app, 'function applyCashPayload', 10000))) {
