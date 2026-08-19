@@ -25,10 +25,11 @@ assert.match(security,/stepUp\|\|\[[^\]]*discount\.apply[^\]]*cash\.withdraw[^\]
 
 assert.match(runtime,/cash-transfer-auth-core\/cash-transfer-auth-core\.js/,'KCASH2 Auth-Core muss vor app.js geladen werden.');
 assert.match(app,/CASH_TRANSFER_SECRET_KEY\s*=\s*["']kc_cash_transfer_secret_v2["']/,'Separates Bargeld-HMAC-Geheimnis fehlt.');
-assert.match(app,/KCCashTransferAuth\.verify/,'KCASH2 muss vor Übernahme kryptografisch verifiziert werden.');
-assert.match(app,/KCCashTransferAuth\.sign/,'Neue Bargeldübergaben müssen mit KCASH2 signiert werden.');
-assert.match(app,/KCCashTransferAuth\.encode/,'Neue Bargeldübergaben müssen als KCASH2 codiert werden.');
-assert.match(app,/KCASH1[^\n]{0,180}(gesperrt|Altformat|abgelehnt)/i,'KCASH1 muss explizit fail-closed gesperrt sein.');
+assert.match(app,/const\s+auth\s*=\s*window\.KCCashTransferAuth/,'KCASH2-Sicherheitsmodul muss als Runtime-Abhängigkeit verwendet werden.');
+assert.match(app,/(?:KCCashTransferAuth|auth)\.verify/,'KCASH2 muss vor Übernahme kryptografisch verifiziert werden.');
+assert.match(app,/(?:KCCashTransferAuth|auth)\.sign/,'Neue Bargeldübergaben müssen mit KCASH2 signiert werden.');
+assert.match(app,/(?:KCCashTransferAuth|auth)\.encode/,'Neue Bargeldübergaben müssen als KCASH2 codiert werden.');
+assert.match(app,/KCASH1[^\n]{0,220}(gesperrt|Altformat|abgelehnt)/i,'KCASH1 muss explizit fail-closed gesperrt sein.');
 assert.match(app,/code\.startsWith\(["']KCASH2:["']\)/,'Scanner muss KCASH2 erkennen.');
 assert.match(app,/await\s+applyCashPayload\(/,'Bargeldimport muss die asynchrone Authentifizierung abwarten.');
 
