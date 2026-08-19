@@ -73,16 +73,18 @@ const gatewayClientAuth=/HMAC/.test(notification)&&/x-kc-signature/.test(notific
 if(!gatewayClientAuth)blockers.push('Failover-Client signiert Sync-/Restore-/Reconcile-Anfragen nicht mit einer fail-closed Geräteidentität.');
 if(!/LOCAL_VAULT_AUTH_UNAVAILABLE/.test(notification)||!/AUTH_SECRET_KEY/.test(notification))blockers.push('Gateway-Gerätegeheimnis ist im Failover-Client nicht zwingend an den verschlüsselten Local Vault gebunden.');
 
-const reconcile = around(notification, 'async function reconcile()', 14000);
+const reconcile = around(notification, 'async function reconcile(', 18000);
 const restoreDigestVerified=/verifyRemoteTransactions\(received\)/.test(reconcile)&&/verifyDigest/.test(notification)&&/stripTransportDigest/.test(notification);
 if (reconcile && /missingLocal/.test(reconcile) && /setItemDurable/.test(reconcile) && !restoreDigestVerified) {
   blockers.push('Failover-Restore übernimmt Remote-Transaktionen in den lokalen Bestand, ohne einen stabilen Inhaltsdigest vor dem Merge nachzuweisen.');
 }
-if (reconcile && /transactionIds:list\.map/.test(reconcile) && !/(chunk|slice\([^\)]*5000|page|cursor)/i.test(reconcile)) {
-  warnings.push('Reconcile sendet die vollständige lokale ID-Liste unsegmentiert. Das kollidiert mit der Gateway-Grenze von 5000 IDs und muss paginiert/gechunkt werden.');
+const reconcileChunked=/RECONCILE_CHUNK_SIZE\s*=\s*1000/.test(notification)&&/for\(const part of chunks\(localIds\)\)/.test(reconcile)&&/fetchRemoteIds\(registerId\)/.test(reconcile)&&/\/sync\/ids/.test(notification)&&/REMOTE_PAGE_SIZE\s*=\s*500/.test(notification);
+if(!reconcileChunked){
+  warnings.push('Reconcile besitzt keinen eindeutig nachweisbaren 1000er Chunk-Vertrag plus paginierte Remote-ID-Liste.');
 }
-if (/setInterval\(kick,5000\)/.test(notification) && /await reconcile\(\)/.test(notification)) {
-  warnings.push('Failover-Sync läuft im 5-Sekunden-Takt und kann nach leerer Queue jedes Mal einen Voll-Reconcile auslösen; bei wachsendem Journal getrennt drosseln.');
+const reconcileThrottled=/RECONCILE_MIN_INTERVAL_MS\s*=\s*60000/.test(notification)&&/THROTTLED/.test(reconcile)&&/await reconcile\(false\)/.test(notification);
+if (/setInterval\(kick,5000\)/.test(notification) && !reconcileThrottled) {
+  warnings.push('Failover-Sync läuft im 5-Sekunden-Takt, ohne den Voll-Reconcile separat zu drosseln.');
 }
 
 if (!/AES-GCM/.test(vault) || !/extractable\s*:\s*false/.test(vault)) {
