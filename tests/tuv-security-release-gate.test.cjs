@@ -15,6 +15,7 @@ const app = read('pos/app.js');
 const index = read('pos/index.html');
 const vault = read('pos/local-vault-bootstrap.js');
 const netlify = read('netlify.toml');
+const runtimeFlags = read('shared/runtime-flags.js');
 const securityCore = read('cores/security-core/security-core.js');
 const secureSync = read('cores/security-core/crypto-secure-sync.js');
 const notification = read('cores/notification-core/notification-core.js');
@@ -61,6 +62,14 @@ if (/function applyCashPayload\(/.test(app) && /function payloadChecksum\(/.test
 if (/KCB-CHECK-1/.test(app) && !/(HMAC|subtle\.verify|signature)/i.test(around(app, 'function validatePosExchange', 7000))) {
   warnings.push('KCB-Konfigurations-/Austauschpakete nutzen eine Prüfsumme statt kryptografischer Herkunftsprüfung. Signatur/HMAC für vertrauenswürdige Manager-Pakete vorsehen.');
 }
+
+const dualGatewayWired=/dual-gateway-bootstrap\.js/.test(index)||/dual-gateway-bootstrap\.js/.test(runtimeFlags);
+const localVaultWired=/local-vault-bootstrap\.js/.test(index)||/local-vault-bootstrap\.js/.test(runtimeFlags);
+if(!dualGatewayWired)blockers.push('Der POS-Runtimepfad aktiviert den vorhandenen Dual-Gateway-Bootstrap nicht.');
+if(!localVaultWired)blockers.push('Der POS-Runtimepfad aktiviert den verschlüsselten Local Vault nicht.');
+const gatewayClientAuth=/HMAC/.test(notification)&&/x-kc-signature/.test(notification)&&/x-kc-device/.test(notification)&&/GATEWAY_DEVICE_NOT_PROVISIONED/.test(notification);
+if(!gatewayClientAuth)blockers.push('Failover-Client signiert Sync-/Restore-/Reconcile-Anfragen nicht mit einer fail-closed Geräteidentität.');
+if(!/LOCAL_VAULT_AUTH_UNAVAILABLE/.test(notification)||!/AUTH_SECRET_KEY/.test(notification))blockers.push('Gateway-Gerätegeheimnis ist im Failover-Client nicht zwingend an den verschlüsselten Local Vault gebunden.');
 
 const reconcile = around(notification, 'async function reconcile()', 12000);
 if (reconcile && /missingLocal/.test(reconcile) && /setItemDurable/.test(reconcile) && !/(sha256|recordHash.*verify|inspectLedger|verifyTransaction)/i.test(reconcile)) {
