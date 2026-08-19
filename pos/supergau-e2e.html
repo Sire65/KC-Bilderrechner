@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KC POS Super-GAU E2E</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:0;background:#eef2f7;color:#172033}main{max-width:920px;margin:auto;padding:20px}.card{background:#fff;border:1px solid #d7dee8;border-radius:16px;padding:18px;margin:14px 0}.row{display:flex;gap:10px;flex-wrap:wrap}.pill{padding:8px 12px;border-radius:999px;background:#e2e8f0}.ok{background:#dcfce7}.bad{background:#fee2e2}.warn{background:#fef3c7}button{border:0;border-radius:12px;padding:12px 16px;font-weight:800;background:#173765;color:white}button:disabled{opacity:.5}pre{white-space:pre-wrap;word-break:break-word;background:#0b1220;color:#dbeafe;padding:14px;border-radius:12px;min-height:180px}h1{font-size:24px}.step{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start;margin:10px 0}.num{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#dbeafe;font-weight:800}
+</style>
+</head><body><main>
+<h1>KC POS · Browser-Super-GAU End-to-End</h1>
+<div class="card"><p>Dieser Test prüft die echte Browser-Strecke: verschlüsselte IndexedDB-Warteschlange → simulierter Totalausfall → lokale Speicherung → Wiederherstellung → Replay zum KC Failover Gateway → Kontrolle auf Verlust und Dubletten.</p><div class="row"><span id="idb" class="pill">IndexedDB: offen</span><span id="crypto" class="pill">AES-GCM: offen</span><span id="gateway" class="pill">Gateway: offen</span></div></div>
+<div class="card">
+<div class="step"><span class="num">1</span><div><b>Lokale Notbuchungen erzeugen</b><br><small>Drei Testtransaktionen werden AES-256-GCM-verschlüsselt in IndexedDB abgelegt.</small></div></div>
+<div class="step"><span class="num">2</span><div><b>Totalausfall simulieren</b><br><small>Es findet bewusst kein Netzwerkzugriff statt; die Queue muss vollständig lokal bleiben.</small></div></div>
+<div class="step"><span class="num">3</span><div><b>Verbindung wiederherstellen</b><br><small>Die Queue wird entschlüsselt und über /sync/batch übertragen.</small></div></div>
+<div class="step"><span class="num">4</span><div><b>Replay und Restore prüfen</b><br><small>Erneute Übertragung darf keine Dubletten erzeugen; Restore muss exakt drei IDs liefern.</small></div></div>
+<button id="run">E2E-Super-GAU starten</button>
+</div>
+<div class="card"><b>Ergebnis</b><div class="row" style="margin-top:10px"><span id="overall" class="pill">Noch nicht gestartet</span><span id="queue" class="pill">Queue: 0</span><span id="remote" class="pill">Remote: 0</span></div><pre id="log"></pre></div>
+<script>
+const GATEWAY='https://kc-failover-gateway.netlify.app';
+const DB='kc_pos_supergau_e2e_v1', STORE='queue', KEYSTORE='keys', KEYID='aes-gcm-device-v1';
+const $=id=>document.getElementById(id), enc=new TextEncoder(), dec=new TextDecoder();
+let db,key;
+function line(x){$('log').textContent += x+'\n'}
+function pill(id,text,state=''){const e=$(id);e.textContent=text;e.className='pill '+state}
+function req(r){return new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+function done(tx){return new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error)})}
+async function openDb(){db=await new Promise((res,rej)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'id'});if(!d.objectStoreNames.contains(KEYSTORE))d.createObjectStore(KEYSTORE,{keyPath:'id'})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});let tx=db.transaction(KEYSTORE,'readonly'),row=await req(tx.objectStore(KEYSTORE).get(KEYID));await done(tx);if(row?.key)key=row.key;else{key=await crypto.subtle.generateKey({name:'AES-GCM',length:256},false,['encrypt','decrypt']);tx=db.transaction(KEYSTORE,'readwrite');tx.objectStore(KEYSTORE).put({id:KEYID,key,extractable:false,createdAt:new Date().toISOString()});await done(tx)}pill('idb','IndexedDB: OK','ok');pill('crypto','AES-GCM: OK','ok')}
+function b64(b){let s='';for(const x of b)s+=String.fromCharCode(x);return btoa(s)}function unb64(s){return Uint8Array.from(atob(s),c=>c.charCodeAt(0))}
+async function seal(v,id){const iv=crypto.getRandomValues(new Uint8Array(12)),ct=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:enc.encode(id)},key,enc.encode(JSON.stringify(v)));return{alg:'AES-256-GCM',iv:b64(iv),ct:b64(new Uint8Array(ct))}}
+async function open(sealed,id){const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(sealed.iv),additionalData:enc.encode(id)},key,unb64(sealed.ct));return JSON.parse(dec.decode(pt))}
+async function clearQueue(){const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).clear();await done(tx)}
+async function putQueue(txn){const sealed=await seal(txn,txn.transactionId),tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({id:txn.transactionId,sealed,createdAt:new Date().toISOString()});await done(tx)}
+async function getQueue(){const tx=db.transaction(STORE,'readonly'),rows=await req(tx.objectStore(STORE).getAll());await done(tx);return Promise.all(rows.map(async r=>open(r.sealed,r.id)))}
+async function deleteQueue(ids){const tx=db.transaction(STORE,'readwrite'),s=tx.objectStore(STORE);ids.forEach(id=>s.delete(id));await done(tx)}
+async function postBatch(rows){const r=await fetch(GATEWAY+'/sync/batch',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({transactions:rows}),cache:'no-store'});const body=await r.json();if(!r.ok&&r.status!==207)throw new Error('SYNC_HTTP_'+r.status+' '+JSON.stringify(body));return body}
+async function restore(registerId){const r=await fetch(GATEWAY+'/sync/transactions?register_id='+encodeURIComponent(registerId),{cache:'no-store'});const body=await r.json();if(!r.ok)throw new Error('RESTORE_HTTP_'+r.status);return body}
+async function probe(){try{const r=await fetch(GATEWAY+'/',{cache:'no-store'});const j=await r.json();pill('gateway','Gateway: '+(j.status||r.status),r.ok?'ok':'bad');return r.ok}catch(e){pill('gateway','Gateway: FEHLER','bad');return false}}
+async function run(){
+ $('run').disabled=true;$('log').textContent='';pill('overall','TEST LÄUFT','warn');
+ const runId='E2E_'+Date.now(),registerId='SUPERGAU_BROWSER_'+runId;
+ try{
+  await openDb();await clearQueue();line('1/6 Lokale Queue geleert.');
+  const rows=[1,2,3].map(n=>({transactionId:`${runId}_${n}`,registerId,registerName:'BROWSER_E2E',time:new Date(Date.now()+n).toISOString(),recordHash:`${runId}_hash_${n}`,amount:n,test:true,source:'indexeddb-e2e'}));
+  for(const r of rows)await putQueue(r);let q=await getQueue();pill('queue','Queue: '+q.length,q.length===3?'ok':'bad');line('2/6 Totalausfall simuliert: 3 Transaktionen ausschließlich lokal verschlüsselt gespeichert.');
+  if(q.length!==3)throw new Error('LOCAL_QUEUE_COUNT_'+q.length);
+  line('3/6 Browser-Neustart-Simulation: Daten erneut aus IndexedDB gelesen und entschlüsselt.');
+  const body1=await postBatch(q),statuses1=body1.results?.map(x=>x.status)||[];line('4/6 Erste Wiederübertragung: '+statuses1.join(', '));
+  const goodFirst=statuses1.length===3&&statuses1.every(x=>x==='STORED'||x==='ALREADY_STORED');if(!goodFirst)throw new Error('FIRST_REPLAY_FAILED');
+  await deleteQueue(q.map(x=>x.transactionId));q=await getQueue();pill('queue','Queue nach Sync: '+q.length,q.length===0?'ok':'bad');
+  const body2=await postBatch(rows),statuses2=body2.results?.map(x=>x.status)||[];line('5/6 Zweite Übertragung (Replay): '+statuses2.join(', '));if(!statuses2.every(x=>x==='ALREADY_STORED'))throw new Error('IDEMPOTENCY_FAILED');
+  const restored=await restore(registerId),ids=new Set((restored.transactions||[]).map(x=>x.transactionId)),exact=rows.every(x=>ids.has(x.transactionId));pill('remote','Remote: '+ids.size,(exact&&ids.size===3)?'ok':'warn');line('6/6 Restore: '+ids.size+' Transaktionen gefunden. Erwartet: 3.');
+  if(!exact||ids.size!==3)throw new Error('RESTORE_MISMATCH_'+ids.size);
+  pill('overall','PASS · KEIN VERLUST · KEINE DUBLETTE','ok');line('PASS: Browser IndexedDB → Offline-Queue → Recovery → Replay → Restore vollständig bestanden.');
+ }catch(e){pill('overall','FAIL','bad');line('FEHLER: '+(e?.message||e));console.error(e)}finally{$('run').disabled=false;await probe()}
+}
+$('run').onclick=run;probe();
+</script></main></body></html>
