@@ -8,12 +8,14 @@ window.KC_RUNTIME_FLAGS=Object.freeze({
  * derzeit nicht direkt ein. Dieser Loader nutzt den bereits vor app.js geladenen
  * runtime-flags-Einstieg, ohne main oder das Produktivdeployment zu verändern.
  *
- * Transaction-Integrity, KCASH2-Authentifizierung, KCB-Austauschauthentifizierung
- * und Dual-Gateway werden parser-synchron geladen. Die im <head> mit defer
- * eingebundene NotificationCore sieht damit den Digest-Core schon bei ihrer
- * Initialisierung. Der Local Vault startet nach der initialen POS-Hydrierung an
- * DOMContentLoaded und migriert vorhandene kc_*-Werte anschließend in den
- * verschlüsselten IndexedDB-Vault.
+ * DOM-Safety, Transaction-Integrity, KCASH2-Authentifizierung,
+ * KCB-Austauschauthentifizierung und Dual-Gateway werden parser-synchron geladen.
+ * DOM-Safety kapselt dabei alle nachfolgenden innerHTML-Zuweisungen vor dem ersten
+ * POS-Render und entfernt ausführbare Tags/Attribute, unsichere URL-Schemata und
+ * nicht freigegebene Inline-Styles. Die im <head> mit defer eingebundene
+ * NotificationCore sieht den Digest-Core schon bei ihrer Initialisierung. Der
+ * Local Vault startet nach der initialen POS-Hydrierung an DOMContentLoaded und
+ * migriert vorhandene kc_*-Werte anschließend in den verschlüsselten IndexedDB-Vault.
  */
 (function(root,doc){
   'use strict';
@@ -42,6 +44,8 @@ window.KC_RUNTIME_FLAGS=Object.freeze({
     node.addEventListener(id==='importKCExchangeFile'?'change':'click',exchangeGuard,true);
   }
 
+  if(!root.KCDomSafety)parserSync('../cores/dom-safety-core/dom-safety-core.js','kcDomSafetyBootstrap');
+  if(root.KCDomSafety?.installed!==true)root.KC_RUNTIME_SECURITY_BLOCKED=true;
   if(!root.KCTransactionIntegrity)parserSync('../cores/transaction-integrity-core/transaction-integrity-core.js','kcTransactionIntegrityBootstrap');
   if(!root.KCCashTransferAuth)parserSync('../cores/cash-transfer-auth-core/cash-transfer-auth-core.js','kcCashTransferAuthBootstrap');
   if(!root.KCBExchangeAuth)parserSync('../exchange-core-v31/exchange-auth.js','kcExchangeAuthBootstrap');
