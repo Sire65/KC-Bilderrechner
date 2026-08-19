@@ -10,6 +10,7 @@ on:
       - 'cores/security-core/security-core.js'
       - 'cores/security-core/crypto-secure-sync.js'
       - 'cores/product-info-core/product-info-core.js'
+      - 'cores/transaction-integrity-core/transaction-integrity-core.js'
       - 'shared/runtime-flags.js'
       - 'pc-manager/failover-monitor.html'
       - 'pos/app.js'
@@ -27,6 +28,7 @@ on:
       - 'tests/failover-monitor-xss.test.cjs'
       - 'tests/product-info-approval.test.cjs'
       - 'tests/runtime-bootstrap.test.cjs'
+      - 'tests/transaction-integrity-core.test.cjs'
       - 'tests/tuv-security-release-gate.test.cjs'
       - '.github/workflows/failover-regression.yml'
   pull_request:
@@ -50,6 +52,7 @@ jobs:
           node --check cores/security-core/security-core.js
           node --check cores/security-core/crypto-secure-sync.js
           node --check cores/product-info-core/product-info-core.js
+          node --check cores/transaction-integrity-core/transaction-integrity-core.js
           node --check shared/runtime-flags.js
           node --check pos/local-vault-bootstrap.js
           node --check pos/dual-gateway-bootstrap.js
@@ -61,6 +64,7 @@ jobs:
           node --check tests/failover-monitor-xss.test.cjs
           node --check tests/product-info-approval.test.cjs
           node --check tests/runtime-bootstrap.test.cjs
+          node --check tests/transaction-integrity-core.test.cjs
           node --check tests/tuv-security-release-gate.test.cjs
       - name: AuditCore secret redaction regression
         run: node tests/audit-core-redaction.test.cjs
@@ -76,6 +80,8 @@ jobs:
         run: node tests/product-info-approval.test.cjs
       - name: Runtime bootstrap regression
         run: node tests/runtime-bootstrap.test.cjs
+      - name: Transaction integrity regression
+        run: node tests/transaction-integrity-core.test.cjs
       - name: Install test dependency
         run: npm install --no-save fake-indexeddb@6.2.2
       - name: Encrypted Local Vault regression
