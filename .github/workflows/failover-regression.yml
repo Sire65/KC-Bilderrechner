@@ -20,6 +20,7 @@ on:
       - 'pos/index.html'
       - 'pos/kcb-exchange-auth-bootstrap.js'
       - 'pos/local-vault-bootstrap.js'
+      - 'pos/vault-app-loader.js'
       - 'pos/dual-gateway-bootstrap.js'
       - 'pos/service-worker.js'
       - 'netlify.toml'
@@ -72,6 +73,7 @@ jobs:
           node --check shared/runtime-flags.js
           node --check pos/kcb-exchange-auth-bootstrap.js
           node --check pos/local-vault-bootstrap.js
+          node --check pos/vault-app-loader.js
           node --check pos/dual-gateway-bootstrap.js
           node --check pos/service-worker.js
           node --check tests/audit-core-redaction.test.cjs
