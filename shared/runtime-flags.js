@@ -8,11 +8,11 @@ window.KC_RUNTIME_FLAGS=Object.freeze({
  * derzeit nicht direkt ein. Dieser Loader nutzt den bereits vor app.js geladenen
  * runtime-flags-Einstieg, ohne main oder das Produktivdeployment zu verändern.
  *
- * Transaction-Integrity und Dual-Gateway werden parser-synchron geladen. Die im
- * <head> mit defer eingebundene NotificationCore sieht damit den Digest-Core schon
- * bei ihrer Initialisierung. Der Local Vault startet nach der initialen POS-
- * Hydrierung an DOMContentLoaded und migriert vorhandene kc_*-Werte anschließend
- * in den verschlüsselten IndexedDB-Vault.
+ * Transaction-Integrity, KCASH2-Authentifizierung und Dual-Gateway werden parser-
+ * synchron geladen. Die im <head> mit defer eingebundene NotificationCore sieht
+ * damit den Digest-Core schon bei ihrer Initialisierung. Der Local Vault startet
+ * nach der initialen POS-Hydrierung an DOMContentLoaded und migriert vorhandene
+ * kc_*-Werte anschließend in den verschlüsselten IndexedDB-Vault.
  */
 (function(root,doc){
   'use strict';
@@ -31,6 +31,7 @@ window.KC_RUNTIME_FLAGS=Object.freeze({
   }
 
   if(!root.KCTransactionIntegrity)parserSync('../cores/transaction-integrity-core/transaction-integrity-core.js','kcTransactionIntegrityBootstrap');
+  if(!root.KCCashTransferAuth)parserSync('../cores/cash-transfer-auth-core/cash-transfer-auth-core.js','kcCashTransferAuthBootstrap');
   if(!root.KCDualGateway)parserSync('dual-gateway-bootstrap.js','kcDualGatewayBootstrap');
 
   const loadVault=()=>{if(!root.KCStorageVault)appendScript('local-vault-bootstrap.js','kcLocalVaultBootstrap')};
