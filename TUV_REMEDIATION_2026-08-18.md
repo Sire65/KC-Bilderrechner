@@ -4,42 +4,44 @@
 
 Diese Prüfspur darf den laufenden Produktionsstand nicht verändern. Änderungen erfolgen ausschließlich auf `audit/tuv-hardening-2026-08-18` und werden nicht automatisch gemergt oder ausgerollt.
 
-## Release-Blocker
+## Aktuell verbleibende Release-Blocker
+
+Der automatisierte TÜV-Gate-Test weist derzeit genau sieben kritische Punkte aus:
 
 1. `DEV_ADMIN_ACCESS=true` in `pos/app.js`.
 2. Sichtbarer Candidate-Entwicklerzugang `developerAdminLogin` in `pos/index.html`.
-3. Finanzielle Aktionen sind noch nicht durchgängig an den vorhandenen SecurityCore gebunden: Rabatt, Entnahme/Reklamationsauszahlung und Tagesabschluss besitzen im jeweiligen Ausführungsweg keine nachgewiesene `requirePermission(...)`-Prüfung.
-4. Der SecurityCore kennzeichnet bestimmte Rechte als Step-Up-pflichtig, der aktuelle `requirePermission`-Helper erzwingt diese Step-Up-Prüfung selbst noch nicht.
-5. `KCASH1`-Bargeld-QRs verwenden nur eine nicht-kryptografische Prüfsumme. Damit ist Beschädigung erkennbar, aber die Herkunft nicht authentifiziert; ein Angreifer kann prinzipiell einen formal korrekten QR selbst erzeugen.
-6. Failover-Restore/Reconcile übernimmt Remote-Transaktionen in den lokalen Bestand, ohne vor dem Merge die Record-Hashes/Prüfkette der empfangenen Daten nachzuweisen.
-7. Produktiver TSE-Adapter ist laut Architektur noch nicht vorhanden; fiskalische Freigabe daher separat offen.
-8. Failover-Gateway-Authentifizierung wird im Repository `KC-Failover-Gateway` separat geprüft und darf vor Security-Freigabe nicht als abgeschlossen gelten.
+3. Rabatt ist im tatsächlichen Ausführungsweg noch nicht an `requirePermission("discount.apply")` gebunden.
+4. Entnahme/Reklamationsauszahlung ist im tatsächlichen Ausführungsweg noch nicht an `requirePermission("cash.withdraw")` gebunden.
+5. Tagesabschluss ist im tatsächlichen Ausführungsweg noch nicht an `requirePermission("closing.execute")` gebunden.
+6. Das produktiv verwendete Altformat `KCASH1` besitzt nur eine nicht-kryptografische Prüfsumme und damit keine Herkunftsauthentifizierung.
+7. Failover-Restore/Reconcile übernimmt empfangene Remote-Transaktionen noch ohne einen transportstabilen Inhaltsdigest vor dem lokalen Merge zu verifizieren.
 
-## Weitere wichtige Befunde
+## Getrennte Freigabestrecken und Warnungen
 
+- Der produktive TSE-/KassenSichV-Adapter ist weiterhin eine eigene fachlich-regulatorische Freigabestrecke; `fiscalMode` steht standardmäßig auf `off`.
 - `KCB-CHECK-1` schützt Austausch-/Konfigurationspakete nur mit einer Prüfsumme, nicht mit einer kryptografischen Herkunftsprüfung. Für vertrauenswürdige Manager-Pakete Signatur oder HMAC vorsehen.
 - Reconcile sendet die vollständige lokale Transaktions-ID-Liste unsegmentiert. Der aktuelle Gateway-Vertrag begrenzt die ID-Liste auf 5000; für größere Journale sind Chunking/Paginierung erforderlich.
 - Failover-Sync wird im 5-Sekunden-Takt angestoßen und kann nach leerer Queue erneut einen Voll-Reconcile auslösen. Bei wachsendem Journal sollte Reconcile separat gedrosselt und ereignisbasiert ausgeführt werden.
-- Die lokale Transaktions-Prüfkette ist gut geeignet, nachträgliche Änderungen zu erkennen, ist aber ohne externe Verankerung nicht gegen einen Angreifer geschützt, der den gesamten lokalen Datenbestand und alle Hashes neu schreiben kann.
-- Dynamische Katalog-/Warenkorbwerte werden teilweise über `innerHTML` aufgebaut. Importdaten werden an mehreren Stellen bereits bereinigt; die vollständige Stored-DOM-XSS-Kette ist trotzdem noch nicht abgeschlossen geprüft.
-- Der Admin-Kontext setzt eine vorhandene `adminSession` beim Permission-Check wieder auf `valid:true`; eine feste maximale Sessiondauer bzw. Inaktivitätsablauf ist im geprüften Pfad nicht erkennbar.
-- Der lokale PIN-Schutz nutzt eine vierstellige PIN und sperrt nach fünf Fehlversuchen für 30 Sekunden. Für einen unbeaufsichtigten/gestohlenen Kassenclient sollte die Rate-Limit-/Step-Up-Strategie stärker und eskalierend ausgelegt werden.
-- Die PBKDF2-Iterationszahl der importierten Superadmin-PIN wird aus dem Freigabepaket übernommen; eine obere/untere Grenze ist im Loginpfad noch nicht erkennbar.
-- Dateiimporte lesen die gewählte Datei zunächst vollständig über `File.text()`. Eine explizite Vorabgrenze der Importdateigröße ist in den geprüften Pfaden nicht erkennbar.
-- `ProductInfoCore` kann einen Datensatz als `approved` akzeptieren, wenn Quelle und Freigabedatum gesetzt sind, auch wenn Big-14-Felder weiterhin `not-checked` sind. Das ist ein Datenqualitäts-/Freigabepunkt für Produkt- und Allergeninformationen.
+- Dynamische Katalog-/Warenkorbwerte werden teilweise über `innerHTML` aufgebaut. Die vollständige Stored-DOM-XSS-Kette ist noch nicht abgeschlossen geprüft.
+- Netlify enthält noch keine getestete Content-Security-Policy und keinen expliziten HSTS-Header.
+- Der lokale PIN-Schutz nutzt weiterhin eine vierstellige PIN und sperrt nach fünf Fehlversuchen für 30 Sekunden. Eine stärkere eskalierende Rate-Limit-Strategie bleibt sinnvoll.
+- Die PBKDF2-Iterationszahl der importierten Superadmin-PIN wird im Loginpfad noch nicht mit einer klaren Ober-/Untergrenze validiert.
+- Dateiimporte lesen ausgewählte Dateien zunächst vollständig über `File.text()`. Eine explizite Vorabgrenze der Importdateigröße ist noch nicht nachgewiesen.
 
-## Bereits eingeführte Abhilfe auf der Audit-Spur
+## Bereits eingeführte und getestete Abhilfe auf der Audit-Spur
 
-- Automatischer statischer Release-Gate-Test `tests/tuv-security-release-gate.test.cjs` wurde um Finanz-Autorisierung, Step-Up, Bargeld-QR-Herkunft, Restore-Integrität und Reconcile-Skalierung erweitert.
-- CI beobachtet POS-, SecurityCore-, AuditCore-, HealthCore-, Local-Vault-, Monitor- und Failover-relevante Dateien und läuft auf der Audit-Spur auch bei Pull Requests gegen `main`.
-- `AuditCore` V0.2.1 entfernt nun zusätzlich Authorization-Header, API-Keys, Private Keys, Service-Role- und Recovery-Felder aus Audit-Metadaten. Regressionstest: `tests/audit-core-redaction.test.cjs`.
-- `HealthCore` V1.0.1 redigiert Geheimnisse auch aus generischen Fehlertexten und sanitisiert den kompletten Diagnose-Status vor dem Export. Regressionstest: `tests/health-core-redaction.test.cjs`.
-- `KCSecureSync` V0.3.1 begrenzt PBKDF2-Iterationswerte und Paketgrößen und validiert Salt-/IV-Längen vor der teuren Entschlüsselung. Regressionstest: `tests/secure-sync-envelope.test.cjs`.
-- Der Failover-Monitor rendert externe Gateway-Statuswerte auf der Audit-Spur nicht mehr per `innerHTML`, sondern über `textContent`/DOM-Knoten. Regressionstest: `tests/failover-monitor-xss.test.cjs`.
-- Die CI führt alle normalen Regressionstests vor dem absichtlich strengen Release-Gate aus. Dadurch ist sichtbar, ob eine Audit-Härtung technisch sauber bleibt, obwohl die Freigabe wegen bekannter Blocker weiterhin rot ist.
-- Ein Release wird vom Gate abgewiesen, solange der Entwickler-Bypass oder dessen sichtbare Schaltfläche vorhanden ist.
-- Dynamische Codeausführung über `eval()` oder `new Function()` wird als Release-Blocker erkannt.
-- Local-Vault-Kryptografie, ausgeschalteter Fiskalmodus, dynamische `innerHTML`-Datenwege sowie fehlende CSP/HSTS-Härtung werden als Prüfpunkte ausgewiesen.
+- `AuditCore` V0.2.1 entfernt Authorization-Header, API-Keys, Private Keys, Service-Role-, Recovery- und weitere Geheimnisfelder aus Audit-Metadaten. Regressionstest: `tests/audit-core-redaction.test.cjs`.
+- `HealthCore` V1.0.1 redigiert Geheimnisse auch aus generischen Fehlertexten und sanitisiert den Diagnose-Status vor dem Export. Regressionstest: `tests/health-core-redaction.test.cjs`.
+- `KCSecureSync` V0.3.1 begrenzt PBKDF2-Iterationswerte und Paketgrößen und validiert Salt-/IV-Längen vor der Entschlüsselung. Regressionstest: `tests/secure-sync-envelope.test.cjs`.
+- `SecurityCore` V0.3.0 erzwingt jetzt fail-closed Berechtigungen, maximale Sessiondauer und frisches Step-Up. Ein Entwickler-Login erfüllt Step-Up ausdrücklich nicht. Regressionstest: `tests/security-core-stepup.test.cjs`.
+- `ProductInfoCore` V0.2.0 erlaubt `approved` nur noch mit Quelle, Freigabedatum, freigebender Person und vollständig geprüften Big-14-Allergenen. Regressionstest: `tests/product-info-approval.test.cjs`.
+- Der Failover-Monitor rendert externe Gateway-Statuswerte auf der Audit-Spur über sichere DOM-Methoden statt über ungeprüftes `innerHTML`. Regressionstest: `tests/failover-monitor-xss.test.cjs`.
+- Der POS-Audit-Runtimepfad bindet den vorhandenen Dual-Gateway-Bootstrap und den verschlüsselten Local Vault ein. Regressionstest: `tests/runtime-bootstrap.test.cjs`.
+- Failover-Client V1.2 signiert `/sync/*`-Anfragen mit HMAC-SHA-256, Geräte-ID, Zeitstempel und Nonce. Das Gerätegeheimnis muss aus einem durch den Local Vault geschützten Schlüssel kommen; ohne Provisionierung wird fail-closed abgebrochen. Die Offline-/Replay-/Reconcile-Regression prüft diese Signaturen mit.
+- Das Gateway-Audit-Gegenstück besitzt HMAC-Geräteauthentifizierung, Zeitfenster, Nonce-Replay-Schutz, Geräte-zu-Kassen-Bindung, Origin-Allowlist, Rate-Limit und getrennte Diagnoseberechtigung. Der Gateway-PR besteht derzeit seine Auth-Regression und seinen TÜV-Security-Gate-Test. Das gilt nur für den Audit-Zweig; Produktion ist dadurch nicht verändert.
+- `TransactionIntegrityCore` V0.1.0 stellt einen rekursiv kanonischen SHA-256-Inhaltsdigest bereit, der unabhängig von Objekt-Schlüsselreihenfolge ist und Manipulationen erkennt. Regressionstest: `tests/transaction-integrity-core.test.cjs`. Die Integration in den produktiven Restore-Pfad steht noch aus; deshalb bleibt Restore ein Blocker.
+- `CashTransferAuthCore` V0.1.0 definiert das neue Format `KCASH2` mit HMAC-SHA-256, Kassenbindung, Gültigkeitszeitraum und Manipulationserkennung. Regressionstest: `tests/cash-transfer-auth-core.test.cjs`. Das aktuell verwendete `KCASH1` bleibt bis zur kontrollierten Integration/Migration ein Blocker.
+- Die CI führt alle normalen Regressionstests vor dem absichtlich strengen Release-Gate aus. So ist erkennbar, ob neue Härtungen technisch sauber bleiben, obwohl die Freigabe wegen verbleibender Blocker rot ist.
 
 ## Read-only Live-Prüfung Datenbanken
 
@@ -64,15 +66,14 @@ Diese Prüfspur darf den laufenden Produktionsstand nicht verändern. Änderunge
 
 ## Nächste sichere Schritte
 
-- Entwickler-Bypass in einer isolierten Änderung entfernen und alle bestehenden Regressionstests ausführen.
-- Finanzielle Aktionen auf der Audit-Spur mit SecurityCore-Rechten und echter Step-Up-Prüfung kapseln; anschließend UI-/Regressionstest, bevor irgendein Merge diskutiert wird.
-- Admin-Sessiondauer, PIN-KDF-Grenzen und eskalierendes Rate-Limit zuerst im Audit-Zweig entwerfen und testen.
-- Bargeld-QR und Manager-Austauschpakete auf kryptografische Herkunftsprüfung umstellen; alte Formate nur kontrolliert migrieren.
-- Restore-Pfad mit Hash-/Kettenprüfung und Quarantäne für ungültige Remote-Datensätze versehen.
+- `TransactionIntegrityCore` kontrolliert in den Failover-Transport integrieren: neue Uploads erhalten einen stabilen Digest; Restore verifiziert ihn vor dem Merge. Für vorhandene Legacy-Datensätze muss vorher eine nachvollziehbare Migrationsregel festgelegt werden, damit ältere Notfallkopien nicht stillschweigend unbrauchbar werden.
+- `KCASH2` kontrolliert in Erzeugung und Einlesepfad integrieren; `KCASH1` danach nur noch explizit als Legacy-Migration akzeptieren oder vollständig sperren.
+- Entwickler-Bypass und sichtbare Candidate-Schaltfläche in einer isolierten Änderung entfernen.
+- Rabatt, Entnahme/Reklamation und Tagesabschluss im echten Handler an SecurityCore-Rechte binden und anschließend UI-/Regressionstest durchführen.
 - Reconcile paginieren/chunken und vom 5-Sekunden-Sync entkoppeln.
-- Importgrößen begrenzen und ProductInfo-Freigaberegeln gegen die fachlich tatsächlich erforderlichen Pflichtangaben testen.
-- Danach UI-Test des Service-/Admin-Zugangs mit PIN und Superadmin-QR durchführen.
+- PIN-KDF-Grenzen, eskalierendes Rate-Limit und Importgrößenbegrenzung ergänzen.
 - DOM-XSS-Datenwege von Manager/Import bis `innerHTML` vollständig nachverfolgen und dynamische Werte konsequent escapen bzw. mit DOM-APIs setzen.
+- CSP/HSTS erst nach Kompatibilitätstest mit den vorhandenen Inline-/Service-Worker-Pfaden aktivieren.
 - Supabase-EXECUTE- und Cron-Grants nach Funktionsbedarf minimieren, aber erst nach Abhängigkeits-/Regressionstest.
 - TSE/KassenSichV getrennt als fachliche Freigabestrecke behandeln.
 
