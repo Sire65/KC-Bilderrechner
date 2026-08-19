@@ -22,6 +22,7 @@ on:
       - 'tests/audit-core-redaction.test.cjs'
       - 'tests/health-core-redaction.test.cjs'
       - 'tests/secure-sync-envelope.test.cjs'
+      - 'tests/security-core-stepup.test.cjs'
       - 'tests/failover-monitor-xss.test.cjs'
       - 'tests/product-info-approval.test.cjs'
       - 'tests/tuv-security-release-gate.test.cjs'
@@ -53,6 +54,7 @@ jobs:
           node --check tests/audit-core-redaction.test.cjs
           node --check tests/health-core-redaction.test.cjs
           node --check tests/secure-sync-envelope.test.cjs
+          node --check tests/security-core-stepup.test.cjs
           node --check tests/failover-monitor-xss.test.cjs
           node --check tests/product-info-approval.test.cjs
           node --check tests/tuv-security-release-gate.test.cjs
@@ -62,6 +64,8 @@ jobs:
         run: node tests/health-core-redaction.test.cjs
       - name: Secure Sync envelope regression
         run: node tests/secure-sync-envelope.test.cjs
+      - name: SecurityCore step-up regression
+        run: node tests/security-core-stepup.test.cjs
       - name: Failover monitor XSS regression
         run: node tests/failover-monitor-xss.test.cjs
       - name: Product info approval regression
