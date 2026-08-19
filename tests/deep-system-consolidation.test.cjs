@@ -79,7 +79,26 @@ for(const src of [...index.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)].map(m
 // Kein offensichtliches produktives Geheimnis in ausführbaren/Deployment-Dateien.
 const scanExt=new Set(['.js','.cjs','.html','.toml','.json','.yml','.yaml']);
 const findings=[];
-function walk(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){if(['.git','node_modules'].includes(entry.name))continue;const full=path.join(dir,entry.name);if(entry.isDirectory())walk(full);else if(scanExt.has(path.extname(entry.name))){const rel=path.relative(root,full);if(rel==='tests/deep-system-consolidation.test.cjs')continue;const s=fs.readFileSync(full,'utf8');for(const re of [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i,/postgres(?:ql)?:\/\/[^\s"']+:[^\s"']+@/i,/service[_-]?role[_-]?key\s*[:=]\s*["'][A-Za-z0-9._-]{20,}/i])if(re.test(s))findings.push(rel);}}}}
+const secretPatterns=[
+  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i,
+  /postgres(?:ql)?:\/\/[^\s"']+:[^\s"']+@/i,
+  /service[_-]?role[_-]?key\s*[:=]\s*["'][A-Za-z0-9._-]{20,}/i
+];
+function walk(dir){
+  for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+    if(['.git','node_modules'].includes(entry.name))continue;
+    const full=path.join(dir,entry.name);
+    if(entry.isDirectory()){
+      walk(full);
+      continue;
+    }
+    if(!scanExt.has(path.extname(entry.name)))continue;
+    const rel=path.relative(root,full);
+    if(rel==='tests/deep-system-consolidation.test.cjs')continue;
+    const source=fs.readFileSync(full,'utf8');
+    if(secretPatterns.some(re=>re.test(source)))findings.push(rel);
+  }
+}
 walk(root);
 assert.deepEqual([...new Set(findings)],[],`Mögliche produktive Secrets im Repository: ${[...new Set(findings)].join(', ')}`);
 
