@@ -15,6 +15,12 @@ assert.equal(api.sanitizeStyleText('--tile-color:#315d8d'),'--tile-color:#315d8d
 assert.equal(api.sanitizeStyleText('background:#fff;position:fixed;left:0'),'background:#fff');
 assert.equal(api.sanitizeStyleText('color:expression(alert(1))'),'');
 assert.equal(api.sanitizeStyleText('--group-color:url(javascript:alert(1))'),'');
+assert.equal(api.isSafePrintScript('window.onload=()=>window.print()'),true);
+assert.equal(api.isSafePrintScript('window.onload=()=>setTimeout(()=>window.print(),120)'),true);
+assert.equal(api.isSafePrintScript('alert(document.cookie)'),false);
+assert.equal(api.isSafeStyleBlock('body{font-family:Arial;color:#172033}'),true);
+assert.equal(api.isSafeStyleBlock('@import url(https://evil.invalid/x.css)'),false);
+assert.equal(api.isSafeStyleBlock('div{background:url(javascript:alert(1))}'),false);
 
 const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'..','cores','dom-safety-core','dom-safety-core.js'),'utf8');
 assert.match(source,/FORBIDDEN_TAGS/);
@@ -23,5 +29,10 @@ assert.match(source,/srcdoc/);
 assert.match(source,/javascript:/);
 assert.match(source,/data:text\/html/);
 assert.match(source,/Object\.defineProperty\(proto,'innerHTML'/);
+assert.match(source,/sanitizeDocumentHtml/);
+assert.match(source,/nativeOpen/);
+assert.match(source,/doc\.write=/);
+assert.match(source,/PRINT_SCRIPT/);
+assert.match(source,/DANGEROUS_CSS/);
 
-console.log('PASS DOM Safety Core blocks executable markup, unsafe URL schemes and unsafe inline styles');
+console.log('PASS DOM Safety Core blocks executable markup, unsafe URL/style payloads and unsafe print-window document.write content');
