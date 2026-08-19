@@ -5,7 +5,7 @@
   if(root.document&&api.FailoverSync)api.FailoverSync.autoStart();
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
   'use strict';
-  const VERSION='0.5.0';
+  const VERSION='0.6.0';
   const PROFILE={beginner:{success:true,info:true,warning:true,error:true},standard:{success:true,info:false,warning:true,error:true},expert:{success:false,info:false,warning:true,error:true}};
   class Controller{
     constructor(node,{profile='standard'}={}){this.node=node;this.profile=PROFILE[profile]?profile:'standard';this.timer=null;this.lastKey='';this.count=0;}
@@ -13,7 +13,8 @@
     show({type='info',message='',key='',duration}={}){if(!this.node||!PROFILE[this.profile][type])return false;clearTimeout(this.timer);if(key&&key===this.lastKey)this.count++;else{this.lastKey=key;this.count=1}this.node.className=`notification-bar ${type} visible`;this.node.textContent=message;this.node.setAttribute('role',type==='error'?'alert':'status');const ms=duration??(type==='success'?1400:type==='info'?1800:type==='warning'?3500:0);if(ms>0)this.timer=setTimeout(()=>this.clear(),ms);return true;}
     clear(){if(!this.node)return;this.node.classList.remove('visible');this.node.textContent='';this.lastKey='';this.count=0;}
   }
-  const FAILOVER={VERSION:'1.3.0',DB:'kc_pos_failover_v1',QUEUE:'queue',ACK:'ack',TX_KEY:'kc_transactions_v040',GATEWAY_KEY:'kc_failover_gateway_url_v1',AUTH_DEVICE_KEY:'kc_gateway_device_id_v1',AUTH_SECRET_KEY:'kc_gateway_device_secret_v1',DEFAULT_GATEWAY:'https://kc-failover-gateway.ha-joko.workers.dev',interval:null,running:false,lastSync:null,lastError:null,lastReconcile:null};
+  const RECONCILE_CHUNK_SIZE=1000,REMOTE_PAGE_SIZE=500,MAX_REMOTE_PAGES=500,RECONCILE_MIN_INTERVAL_MS=60000;
+  const FAILOVER={VERSION:'1.4.0',DB:'kc_pos_failover_v1',QUEUE:'queue',ACK:'ack',TX_KEY:'kc_transactions_v040',GATEWAY_KEY:'kc_failover_gateway_url_v1',AUTH_DEVICE_KEY:'kc_gateway_device_id_v1',AUTH_SECRET_KEY:'kc_gateway_device_secret_v1',DEFAULT_GATEWAY:'https://kc-failover-gateway.ha-joko.workers.dev',interval:null,running:false,lastSync:null,lastError:null,lastReconcile:null,lastReconcileAttemptAt:0};
   const AUTH_VERSION='KC-GW-HMAC-V1';
   function isPos(){try{return /(^|\/)pos(\/|$)/i.test(root.location?.pathname||'')}catch{return false}}
   function gateway(){try{return (root.localStorage?.getItem(FAILOVER.GATEWAY_KEY)||FAILOVER.DEFAULT_GATEWAY).replace(/\/$/,'')}catch{return FAILOVER.DEFAULT_GATEWAY}}
@@ -46,11 +47,7 @@
   async function attachTransportDigest(transaction){return integrityCore().attachDigest(transaction,{source:'pos-client'})}
   async function verifyRemoteTransactions(rows){
     const core=integrityCore(),clean=[];
-    for(const row of Array.isArray(rows)?rows:[]){
-      const check=await core.verifyDigest(row);
-      if(!check.ok)throw new Error(`REMOTE_${check.code||'DIGEST_INVALID'}`);
-      clean.push(core.stripTransportDigest(row));
-    }
+    for(const row of Array.isArray(rows)?rows:[]){const check=await core.verifyDigest(row);if(!check.ok)throw new Error(`REMOTE_${check.code||'DIGEST_INVALID'}`);clean.push(core.stripTransportDigest(row))}
     return clean;
   }
   async function gatewayAuthConfig(){
@@ -71,25 +68,51 @@
   }
   async function fetchJson(url,options={},timeout=7000){const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),timeout);try{const signed=await signGatewayInit(url,options),r=await fetch(url,{...signed,cache:'no-store',signal:ctl.signal});let body={};try{body=await r.json()}catch{}if(!r.ok&&r.status!==207&&r.status!==409)throw new Error(`HTTP_${r.status}`);return {status:r.status,body}}finally{clearTimeout(timer)}}
   async function markAck(id,status){await storePut(FAILOVER.ACK,{transactionId:id,status,syncedAt:new Date().toISOString()});await storeDelete(FAILOVER.QUEUE,id)}
-  async function reconcile(){
-    const rows=localTransactions();if(!rows.length)return {missingRemote:[],missingLocal:[]};
+  function chunks(list,size=RECONCILE_CHUNK_SIZE){const out=[];for(let i=0;i<list.length;i+=size)out.push(list.slice(i,i+size));return out}
+  async function fetchRemoteIds(registerId){
+    const ids=[];let afterId=null;
+    for(let page=0;page<MAX_REMOTE_PAGES;page++){
+      const query=new URLSearchParams({register_id:registerId,limit:String(REMOTE_PAGE_SIZE)});if(afterId)query.set('after_id',afterId);
+      const r=await fetchJson(`${gateway()}/sync/ids?${query.toString()}`,{},10000),body=r.body||{},batch=Array.isArray(body.transactionIds)?body.transactionIds.map(String):[];ids.push(...batch);
+      if(!body.nextCursor)return ids;afterId=String(body.nextCursor)
+    }
+    throw new Error('REMOTE_ID_PAGE_LIMIT');
+  }
+  async function fetchRemoteTransactions(registerId){
+    const rows=[];let afterId=null;
+    for(let page=0;page<MAX_REMOTE_PAGES;page++){
+      const query=new URLSearchParams({register_id:registerId,limit:String(REMOTE_PAGE_SIZE)});if(afterId)query.set('after_id',afterId);
+      const r=await fetchJson(`${gateway()}/sync/transactions?${query.toString()}`,{},10000),body=r.body||{},batch=Array.isArray(body.transactions)?body.transactions:[];rows.push(...batch);
+      if(!body.nextCursor)return rows;afterId=String(body.nextCursor)
+    }
+    throw new Error('REMOTE_TX_PAGE_LIMIT');
+  }
+  async function reconcile(force=true){
+    const now=Date.now();if(!force&&FAILOVER.lastReconcileAttemptAt&&now-FAILOVER.lastReconcileAttemptAt<RECONCILE_MIN_INTERVAL_MS)return{skipped:true,reason:'THROTTLED',lastReconcile:FAILOVER.lastReconcile};FAILOVER.lastReconcileAttemptAt=now;
+    const rows=localTransactions();if(!rows.length)return {missingRemote:[],missingLocal:[],restoreVerified:true};
     const groups=new Map();for(const row of rows){if(!groups.has(row.registerId))groups.set(row.registerId,[]);groups.get(row.registerId).push(row)}
     let totalRemote=0,totalLocal=0,missingRemote=[],missingLocal=[];
     for(const [registerId,list] of groups){
-      let reply;try{reply=await fetchJson(`${gateway()}/sync/reconcile`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({registerId,transactionIds:list.map(x=>x.transactionId)})},9000)}catch(error){FAILOVER.lastError=error instanceof Error?error.message:String(error);return null}
-      const body=reply.body||{};totalRemote+=Number(body.remoteCount||0);totalLocal+=Number(body.localCount||0);
-      for(const id of body.missingRemote||[]){missingRemote.push(id);await storeDelete(FAILOVER.ACK,id);const tx=list.find(x=>x.transactionId===id);if(tx)await queuePut({transactionId:id,registerId,payload:tx,recordHash:tx.recordHash||null,queuedAt:new Date().toISOString(),attempts:0,lastError:null,status:'PENDING'})}
-      if(Array.isArray(body.missingLocal)&&body.missingLocal.length){
-        missingLocal.push(...body.missingLocal);
+      const localIds=list.map(x=>String(x.transactionId)),localSet=new Set(localIds),missingRemoteFor=[];
+      try{
+        for(const part of chunks(localIds)){
+          const reply=await fetchJson(`${gateway()}/sync/reconcile`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({registerId,transactionIds:part})},9000),body=reply.body||{};missingRemoteFor.push(...(Array.isArray(body.missingRemote)?body.missingRemote.map(String):[]));
+        }
+      }catch(error){FAILOVER.lastError=error instanceof Error?error.message:String(error);return null}
+      for(const id of [...new Set(missingRemoteFor)]){missingRemote.push(id);await storeDelete(FAILOVER.ACK,id);const tx=list.find(x=>String(x.transactionId)===id);if(tx)await queuePut({transactionId:id,registerId,payload:tx,recordHash:tx.recordHash||null,queuedAt:new Date().toISOString(),attempts:0,lastError:null,status:'PENDING'})}
+      let remoteIds;try{remoteIds=await fetchRemoteIds(registerId)}catch(error){FAILOVER.lastError=error instanceof Error?error.message:String(error);return null}
+      totalRemote+=remoteIds.length;totalLocal+=localIds.length;const missingLocalFor=remoteIds.filter(id=>!localSet.has(id));missingLocal.push(...missingLocalFor);
+      if(missingLocalFor.length){
         try{
-          const r=await fetchJson(`${gateway()}/sync/transactions?register_id=${encodeURIComponent(registerId)}`,{},10000),received=Array.isArray(r.body?.transactions)?r.body.transactions:[],remote=await verifyRemoteTransactions(received),current=localTransactions(),map=new Map(current.map(x=>[x.transactionId,x]));
-          for(const tx of remote)if(tx?.transactionId&&!map.has(tx.transactionId))map.set(tx.transactionId,tx);
+          const received=await fetchRemoteTransactions(registerId),remote=await verifyRemoteTransactions(received),wanted=new Set(missingLocalFor),current=localTransactions(),map=new Map(current.map(x=>[x.transactionId,x]));
+          for(const tx of remote)if(tx?.transactionId&&wanted.has(String(tx.transactionId))&&!map.has(tx.transactionId))map.set(tx.transactionId,tx);
+          const unresolved=missingLocalFor.filter(id=>!map.has(id));if(unresolved.length)throw new Error('REMOTE_RESTORE_INCOMPLETE');
           const merged=[...map.values()].sort((a,b)=>String(a.time||a.endTime||'').localeCompare(String(b.time||b.endTime||'')));
           if(root.KCStorageVault?.setItemDurable)await root.KCStorageVault.setItemDurable(FAILOVER.TX_KEY,JSON.stringify(merged));else root.localStorage?.setItem(FAILOVER.TX_KEY,JSON.stringify(merged));
         }catch(error){FAILOVER.lastError=error instanceof Error?error.message:String(error);return {missingRemote,missingLocal,remoteCount:totalRemote,localCount:totalLocal,restoreRejected:true}}
       }
     }
-    FAILOVER.lastError=null;FAILOVER.lastReconcile=new Date().toISOString();return {missingRemote,missingLocal,remoteCount:totalRemote,localCount:totalLocal,restoreVerified:true}
+    FAILOVER.lastError=null;FAILOVER.lastReconcile=new Date().toISOString();return {missingRemote:[...new Set(missingRemote)],missingLocal:[...new Set(missingLocal)],remoteCount:totalRemote,localCount:totalLocal,restoreVerified:true}
   }
   async function flush(){
     if(FAILOVER.running)return;FAILOVER.running=true;
@@ -100,7 +123,7 @@
         try{const transactions=await Promise.all(batch.map(x=>attachTransportDigest(x.payload)));reply=await fetchJson(`${gateway()}/sync/batch`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({transactions})},9000)}catch(error){FAILOVER.lastError=error instanceof Error?error.message:String(error);for(const item of batch)await queuePut({...item,attempts:Number(item.attempts||0)+1,lastError:FAILOVER.lastError,status:'PENDING'});break}
         const results=Array.isArray(reply.body?.results)?reply.body.results:[];for(const result of results){if(result.status==='STORED'||result.status==='ALREADY_STORED')await markAck(result.transactionId,result.status);else if(result.status==='CONFLICT'){const item=batch.find(x=>x.transactionId===result.transactionId);if(item)await queuePut({...item,attempts:Number(item.attempts||0)+1,lastError:'CONFLICT',status:'CONFLICT'})}}FAILOVER.lastError=null;FAILOVER.lastSync=new Date().toISOString()
       }
-      const left=await queueAll();setHint(left.length,FAILOVER.lastError);if(!left.some(x=>x.status==='CONFLICT'||x.status==='CORRUPT'))await reconcile()
+      const left=await queueAll();setHint(left.length,FAILOVER.lastError);if(!left.some(x=>x.status==='CONFLICT'||x.status==='CORRUPT'))await reconcile(false)
     }finally{FAILOVER.running=false}
   }
   async function selfTest(){
@@ -109,11 +132,11 @@
     const raw=(await storeAll(FAILOVER.QUEUE)).find(x=>x.transactionId===id),read=(await queueAll()).find(x=>x.transactionId===id),encrypted=!!raw?.sealedPayload&&!Object.prototype.hasOwnProperty.call(raw,'payload'),persisted=read?.payload?.transactionId===id;await storeDelete(FAILOVER.QUEUE,id);const removed=!(await storeAll(FAILOVER.QUEUE)).some(x=>x.transactionId===id);
     let authProvisioned=false;try{await gatewayAuthConfig();authProvisioned=true}catch{}
     let integrity=false;try{const wrapped=await attachTransportDigest(payload),check=await integrityCore().verifyDigest(wrapped);integrity=check.ok===true}catch{}
-    return {queuePersist:persisted&&removed,queueEncrypted:encrypted,indexedDb:true,authProvisioned,restoreIntegrity:integrity,version:FAILOVER.VERSION}
+    return {queuePersist:persisted&&removed,queueEncrypted:encrypted,indexedDb:true,authProvisioned,restoreIntegrity:integrity,reconcileChunkSize:RECONCILE_CHUNK_SIZE,remotePageSize:REMOTE_PAGE_SIZE,version:FAILOVER.VERSION}
   }
-  async function status(){const q=await queueAll(),a=await storeAll(FAILOVER.ACK);let authProvisioned=false;try{await gatewayAuthConfig();authProvisioned=true}catch{}return {version:FAILOVER.VERSION,gateway:gateway(),pending:q.length,conflicts:q.filter(x=>x.status==='CONFLICT').length,corrupt:q.filter(x=>x.status==='CORRUPT').length,acked:a.length,lastSync:FAILOVER.lastSync,lastError:FAILOVER.lastError,lastReconcile:FAILOVER.lastReconcile,encryption:'AES-256-GCM',gatewayAuth:'HMAC-SHA-256',authProvisioned,restoreIntegrity:'KC_TX_DIGEST_V1'}}
+  async function status(){const q=await queueAll(),a=await storeAll(FAILOVER.ACK);let authProvisioned=false;try{await gatewayAuthConfig();authProvisioned=true}catch{}return {version:FAILOVER.VERSION,gateway:gateway(),pending:q.length,conflicts:q.filter(x=>x.status==='CONFLICT').length,corrupt:q.filter(x=>x.status==='CORRUPT').length,acked:a.length,lastSync:FAILOVER.lastSync,lastError:FAILOVER.lastError,lastReconcile:FAILOVER.lastReconcile,encryption:'AES-256-GCM',gatewayAuth:'HMAC-SHA-256',authProvisioned,restoreIntegrity:'KC_TX_DIGEST_V1',reconcileChunkSize:RECONCILE_CHUNK_SIZE,remotePageSize:REMOTE_PAGE_SIZE,reconcileMinIntervalMs:RECONCILE_MIN_INTERVAL_MS}}
   function start(){if(!isPos()||FAILOVER.interval||!root.indexedDB)return;const kick=()=>flush().catch(error=>{FAILOVER.lastError=error instanceof Error?error.message:String(error)});root.addEventListener?.('online',kick);root.addEventListener?.('storage',event=>{if(event.key===FAILOVER.TX_KEY)kick()});root.addEventListener?.('kc-local-vault-ready',kick);root.document?.addEventListener('visibilitychange',()=>{if(root.document.visibilityState==='visible')kick()});FAILOVER.interval=root.setInterval(kick,5000);root.setTimeout(kick,1200)}
-  const FailoverSync=Object.freeze({VERSION:FAILOVER.VERSION,start,autoStart:start,syncNow:flush,reconcile,status,selfTest,enqueueMissing,gateway,signGatewayInit,attachTransportDigest,verifyRemoteTransactions});
+  const FailoverSync=Object.freeze({VERSION:FAILOVER.VERSION,start,autoStart:start,syncNow:flush,reconcile,status,selfTest,enqueueMissing,gateway,signGatewayInit,attachTransportDigest,verifyRemoteTransactions,fetchRemoteIds,fetchRemoteTransactions});
   root.KCFailoverSync=FailoverSync;
   return Object.freeze({VERSION,PROFILE,Controller,FailoverSync});
 });
