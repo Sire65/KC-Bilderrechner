@@ -3,8 +3,20 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
-const C=require('../pc-manager/free-monitor-core.js');
+const corePath=path.join(__dirname,'..','pc-manager','free-monitor-core.js');
+const htmlPath=path.join(__dirname,'..','pc-manager','free-monitor.html');
+const livePath=path.join(__dirname,'..','pc-manager','free-monitor-live.js');
+const coreJs=fs.readFileSync(corePath,'utf8');
+const html=fs.readFileSync(htmlPath,'utf8');
+const liveJs=fs.readFileSync(livePath,'utf8');
+const C=require(corePath);
 
+// Rechenkern / Grenzwerte.
+assert.equal(C.num(null),null,'null darf nicht als 0 interpretiert werden');
+assert.equal(C.num(undefined),null,'undefined darf nicht als 0 interpretiert werden');
+assert.equal(C.num(''),null,'leerer Wert darf nicht als 0 interpretiert werden');
+assert.equal(C.percent(null,100),null,'unbekannter Verbrauch muss unbekannt bleiben');
+assert.equal(C.remaining(null,100),null,'Rest darf bei unbekanntem Verbrauch nicht erfunden werden');
 assert.equal(C.percent(50,100),50);
 assert.equal(C.remaining(25,100),75);
 assert.equal(C.riskFromPercent(49),'ok');
@@ -13,6 +25,7 @@ assert.equal(C.riskFromPercent(76),'danger');
 assert.equal(C.riskFromPercent(91),'critical');
 assert.equal(C.metricRisk({used:1,limit:100,blocked:true}),'critical');
 
+// LIVE-SAFE Prognose.
 const provider={id:'netlify',blocked:false,metrics:[{id:'credits',used:30,limit:300,liveReservePct:80,period:'monthly'}]};
 const history=[
  {at:'2026-08-17T00:00:00Z',providerId:'netlify',metrics:{credits:15}},
@@ -28,13 +41,30 @@ const safeHistory=[
  {at:'2026-08-18T00:00:00Z',providerId:'safe',metrics:{x:10}}
 ];
 assert.equal(C.liveSafe(safeProvider,safeHistory,{liveDays:10,reservePct:20}).safe,true);
+
+// Tiefenkonsolidierung: fehlende/stale Quoten dürfen niemals als 0 bzw. grün durchrutschen.
+const partialProvider={id:'supabase',metrics:[
+ {id:'db',used:42,limit:500,period:'nonreset'},
+ {id:'egress',used:null,limit:5,period:'monthly'}
+]};
+assert.equal(C.providerRisk(partialProvider),'unknown','Teilweise fehlende Pflichtmetrik muss Anbieterstatus offen halten');
+assert.equal(C.liveSafe(partialProvider,[],{liveDays:10,reservePct:50}).safe,null,'Fehlende Pflichtmetrik darf keine LIVE-SAFE-Freigabe ergeben');
+const staleProvider={id:'cloudflare',stale:true,metrics:[{id:'requests',used:1,limit:100000,period:'daily'}]};
+assert.equal(C.providerRisk(staleProvider),'unknown','stale Anbieter muss unbekannt bleiben');
+assert.equal(C.liveSafe(staleProvider,[],{liveDays:10,reservePct:50}).safe,null,'stale Anbieter darf nicht LIVE-SAFE werden');
+const informationalOnly={id:'github',metrics:[{id:'actions',used:0,limit:2000,informational:true,period:'monthly'}]};
+assert.equal(C.providerRisk(informationalOnly),'ok');
+assert.equal(C.liveSafe(informationalOnly,[],{liveDays:10,reservePct:50}).safe,true);
+
+const snap=C.snapshotFromProviders([{id:'x',metrics:[{id:'known',used:4},{id:'unknown',used:null}]}],'2026-08-19T00:00:00Z','test')[0];
+assert.deepEqual(snap.metrics,{known:4},'Unbekannte Werte dürfen nicht als Nullverbrauch in die Historie geschrieben werden');
 assert.equal(C.dueDaily(null,Date.now(),24),true);
 assert.equal(C.dueDaily(new Date().toISOString(),Date.now(),24),false);
 assert.deepEqual(C.validateProviders([{id:'x',metrics:[{id:'a',used:1,limit:2}]}]),[]);
 assert.ok(C.validateProviders([{id:'x',metrics:[{id:'a',used:-1,limit:2}]}]).length>0);
+assert.ok(C.validateProviders([{id:'x',stale:'yes',metrics:[]}]).length>0);
 
-const html=fs.readFileSync(path.join(__dirname,'..','pc-manager','free-monitor.html'),'utf8');
-const liveJs=fs.readFileSync(path.join(__dirname,'..','pc-manager','free-monitor-live.js'),'utf8');
+// Studio / UI-Vertrag.
 assert.match(html,/Strikter 0-Credit-Modus/);
 assert.match(html,/Tägliche lokale Auto-Prüfung/);
 assert.match(html,/Netlify/);
@@ -47,23 +77,34 @@ assert.match(html,/canvas id="pie"/);
 assert.match(html,/canvas id="bars"/);
 assert.match(html,/canvas id="line"/);
 assert.match(html,/canvas id="columns"/);
+assert.match(html,/@media\(max-width:720px\)/,'Tablet-/Mobil-Layout fehlt');
 
 const inline=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m=>m[1]).filter(s=>s.trim());
 assert.ok(inline.length>=1,'Inline-Script fehlt');
 for(const code of inline)new vm.Script(code,{filename:'pc-manager/free-monitor.html'});
+new vm.Script(coreJs,{filename:'pc-manager/free-monitor-core.js'});
 new vm.Script(liveJs,{filename:'pc-manager/free-monitor-live.js'});
 
-// Harte Schutzregel: Der Manager selbst startet keine Provider-Laufzeit oder kostenrelevante Cloud-Aktion.
-assert.doesNotMatch(html,/\bfetch\s*\(/,'HTML darf selbst keinen fetch ausführen');
-assert.doesNotMatch(html,/XMLHttpRequest/,'HTML darf keine XHR-Netzabfrage ausführen');
-assert.doesNotMatch(html,/\.netlify\/functions|workers\.dev|api\.supabase\.com|console\.neon\.tech\/api|api\.cloudflare\.com/i,'HTML darf keinen metered Provider-Pfad fest verdrahten');
+// Harte Architekturregel: Solange die spätere Automatik nicht bewusst aktiviert wurde,
+// bleibt die Manager-Seite lokal-only und lädt den Live-Adapter nicht selbst nach.
+assert.doesNotMatch(html,/free-monitor-live\.js/,'Live-Adapter darf vor Aktivierung nicht in HTML geladen werden');
+assert.doesNotMatch(coreJs,/createElement\s*\(\s*['"]script['"]|free-monitor-live\.js/,'Core darf den Live-Adapter nicht heimlich aktivieren');
 
-// Der Live-Adapter darf genau einen read-only GitHub-Raw-Snapshot lesen und sonst keinen Provider direkt aufrufen.
+// Harte 0-Credit-Regel: Der aktive Manager startet keine Provider-Laufzeit oder kostenrelevante Cloud-Aktion.
+assert.doesNotMatch(html,/\bfetch\s*\(/,'HTML darf selbst keinen fetch ausführen');
+assert.doesNotMatch(html,/XMLHttpRequest|WebSocket|EventSource/,'HTML darf keine Hintergrund-Netzschnittstelle öffnen');
+assert.doesNotMatch(html,/\.netlify\/functions|workers\.dev|api\.supabase\.com|console\.neon\.tech\/api|api\.cloudflare\.com/i,'HTML darf keinen metered Provider-Pfad fest verdrahten');
+assert.doesNotMatch(html,/\beval\s*\(|new\s+Function\s*\(/,'Free-Monitor darf keine dynamische Codeausführung verwenden');
+
+// Der vorbereitete, derzeit dormante Live-Adapter darf exakt einen read-only GitHub-Raw-Snapshot lesen.
 assert.match(liveJs,/https:\/\/raw\.githubusercontent\.com\/Sire65\/KC-Bilderrechner\/monitor-free-usage-data\/pc-manager\/free-monitor-live\.json/,'GitHub-Raw-Snapshot fehlt');
 const fetchCalls=[...liveJs.matchAll(/\bfetch\s*\(/g)].length;
 assert.equal(fetchCalls,1,'Live-Adapter darf genau einen Fetch-Pfad besitzen');
-assert.doesNotMatch(liveJs,/XMLHttpRequest|\.netlify\/functions|workers\.dev|api\.supabase\.com|console\.neon\.tech\/api|api\.cloudflare\.com/i,'Live-Adapter darf keinen Provider-Runtime-/Management-Endpunkt direkt aufrufen');
+assert.doesNotMatch(liveJs,/XMLHttpRequest|WebSocket|EventSource|\.netlify\/functions|workers\.dev|api\.supabase\.com|console\.neon\.tech\/api|api\.cloudflare\.com/i,'Live-Adapter darf keinen Provider-Runtime-/Management-Endpunkt direkt aufrufen');
 assert.doesNotMatch(liveJs,/method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i,'Live-Adapter darf keine schreibende HTTP-Methode verwenden');
 assert.doesNotMatch(liveJs,/credentials\s*:\s*['"]include['"]/i,'Live-Adapter darf keine Browser-Credentials mitsenden');
+assert.match(liveJs,/hostname!==['"]raw\.githubusercontent\.com['"]/,'Live-Adapter braucht eine feste Host-Allowlist');
+assert.match(liveJs,/snap\.stale!==undefined/,'stale-Status muss aus dem Snapshot übernommen werden');
+assert.match(liveJs,/isDuplicate\(/,'Snapshot-Historie braucht Dublettenschutz');
 
-console.log('PASS KC Free-Monitor logic, browser syntax, LIVE-SAFE forecast, charts and zero-credit GitHub snapshot contract');
+console.log('PASS KC Free-Monitor deep regression: core, unknown/stale fail-closed, LIVE-SAFE, Studio UI, dormant sync and zero-credit architecture');
