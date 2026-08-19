@@ -1,8 +1,7 @@
 'use strict';
 
 const assert=require('node:assert/strict');
-const {webcrypto}=require('node:crypto');
-global.crypto=webcrypto;
+assert.ok(globalThis.crypto?.subtle,'Node WebCrypto wird für den KCASH2-Test benötigt.');
 const core=require('../cores/cash-transfer-auth-core/cash-transfer-auth-core.js');
 
 (async()=>{
