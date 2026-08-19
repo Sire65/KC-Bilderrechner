@@ -12,6 +12,7 @@ on:
       - 'cores/product-info-core/product-info-core.js'
       - 'cores/transaction-integrity-core/transaction-integrity-core.js'
       - 'cores/cash-transfer-auth-core/cash-transfer-auth-core.js'
+      - 'cores/dom-safety-core/dom-safety-core.js'
       - 'exchange-core-v31/exchange-auth.js'
       - 'shared/runtime-flags.js'
       - 'pc-manager/failover-monitor.html'
@@ -29,6 +30,7 @@ on:
       - 'tests/secure-sync-envelope.test.cjs'
       - 'tests/security-core-stepup.test.cjs'
       - 'tests/failover-monitor-xss.test.cjs'
+      - 'tests/dom-safety-core.test.cjs'
       - 'tests/product-info-approval.test.cjs'
       - 'tests/runtime-bootstrap.test.cjs'
       - 'tests/transaction-integrity-core.test.cjs'
@@ -61,6 +63,7 @@ jobs:
           node --check cores/product-info-core/product-info-core.js
           node --check cores/transaction-integrity-core/transaction-integrity-core.js
           node --check cores/cash-transfer-auth-core/cash-transfer-auth-core.js
+          node --check cores/dom-safety-core/dom-safety-core.js
           node --check exchange-core-v31/exchange-auth.js
           node --check shared/runtime-flags.js
           node --check pos/kcb-exchange-auth-bootstrap.js
@@ -72,6 +75,7 @@ jobs:
           node --check tests/secure-sync-envelope.test.cjs
           node --check tests/security-core-stepup.test.cjs
           node --check tests/failover-monitor-xss.test.cjs
+          node --check tests/dom-safety-core.test.cjs
           node --check tests/product-info-approval.test.cjs
           node --check tests/runtime-bootstrap.test.cjs
           node --check tests/transaction-integrity-core.test.cjs
@@ -90,6 +94,8 @@ jobs:
         run: node tests/security-core-stepup.test.cjs
       - name: Failover monitor XSS regression
         run: node tests/failover-monitor-xss.test.cjs
+      - name: DOM safety regression
+        run: node tests/dom-safety-core.test.cjs
       - name: Product info approval regression
         run: node tests/product-info-approval.test.cjs
       - name: Runtime bootstrap regression
