@@ -4,89 +4,117 @@
 
 Diese Prüfspur darf den laufenden Produktionsstand nicht verändern. Änderungen erfolgen ausschließlich auf `audit/tuv-hardening-2026-08-18` und werden nicht automatisch gemergt oder ausgerollt.
 
-## Aktuell verbleibende Release-Blocker
+## Status des automatisierten Release-Gates
 
-Der automatisierte TÜV-Gate-Test weist derzeit **sechs** kritische Punkte aus:
+Der aktuelle vollständige CI-Lauf ist auf dem Audit-Zweig **grün**. Das TÜV-Security-Release-Gate meldet **keinen erkannten kritischen Release-Blocker** mehr.
 
-1. `DEV_ADMIN_ACCESS=true` in `pos/app.js`.
-2. Sichtbarer Candidate-Entwicklerzugang `developerAdminLogin` in `pos/index.html`.
-3. Rabatt ist im tatsächlichen Ausführungsweg noch nicht an `requirePermission("discount.apply")` gebunden.
-4. Entnahme/Reklamationsauszahlung ist im tatsächlichen Ausführungsweg noch nicht an `requirePermission("cash.withdraw")` gebunden.
-5. Tagesabschluss ist im tatsächlichen Ausführungsweg noch nicht an `requirePermission("closing.execute")` gebunden.
-6. Das produktiv verwendete Altformat `KCASH1` besitzt nur eine nicht-kryptografische Prüfsumme und damit keine Herkunftsauthentifizierung.
+Die sechs zuletzt offenen POS-Blocker sind auf der Audit-Spur technisch beseitigt und durch Regressionstests abgesichert:
 
-Der frühere Restore-Integritätsblocker ist auf der Audit-Spur beseitigt: neue Failover-Uploads erhalten einen stabilen `KC_TX_DIGEST_V1`-Digest; Restore-Datensätze werden vor dem lokalen Merge verifiziert und Transportmetadaten anschließend wieder entfernt. Manipulierte Remote-Daten werden fail-closed abgelehnt.
+1. `DEV_ADMIN_ACCESS` ist deaktiviert.
+2. Der sichtbare und der latente Candidate-Entwicklerzugang `developerAdminLogin` wurden entfernt.
+3. Rabatt ist im tatsächlichen Handler an `requirePermission("discount.apply")` gebunden.
+4. Entnahme/Reklamationsauszahlung ist im tatsächlichen Handler an `requirePermission("cash.withdraw")` gebunden.
+5. Tagesabschluss ist im tatsächlichen Erzeugungsweg an `requirePermission("closing.execute")` gebunden.
+6. `KCASH1` wird fail-closed abgelehnt; Bargeldübergaben verwenden auf der Audit-Spur `KCASH2` mit HMAC-SHA-256, Kassen-/Datumsbindung und Gültigkeitsfenster.
 
-## Getrennte Freigabestrecken und verbleibende Warnungen
+Zusätzlich verlangt `SecurityCore` für Rabatt, Entnahme und Tagesabschluss standardmäßig eine frische PIN-/QR-Step-Up-Freigabe. Ein Entwickler-Login kann Step-Up nicht erfüllen.
 
-Der aktuelle TÜV-Gate-Lauf meldet nur noch vier Warnklassen:
+Der frühere Restore-Integritätsblocker ist ebenfalls beseitigt: neue Failover-Uploads erhalten einen stabilen `KC_TX_DIGEST_V1`-Digest; Restore-Datensätze werden vor dem lokalen Merge verifiziert. Manipulierte Remote-Daten werden fail-closed abgelehnt.
 
-- **Legacy-Restore-Migration:** Bereits früher gespeicherte Remote-Transaktionen ohne `KC_TX_DIGEST_V1` werden vom neuen Restore bewusst nicht ungeprüft übernommen. Vor einem späteren Deployment muss entschieden werden, ob vorhandene Altbestände kontrolliert migriert, archiviert oder als Legacy-Quarantäne behandelt werden.
-- Der produktive TSE-/KassenSichV-Adapter ist weiterhin eine eigene fachlich-regulatorische Freigabestrecke; `fiscalMode` steht standardmäßig auf `off`.
-- `KCB-CHECK-1` schützt Austausch-/Konfigurationspakete nur mit einer Prüfsumme, nicht mit einer kryptografischen Herkunftsprüfung. Für vertrauenswürdige Manager-Pakete Signatur oder HMAC vorsehen.
-- Dynamische Katalog-/Warenkorbwerte werden teilweise über `innerHTML` aufgebaut. Die vollständige Stored-DOM-XSS-Kette ist noch nicht abgeschlossen geprüft.
-- Netlify besitzt auf der Audit-Spur jetzt einen HSTS-Header. Eine getestete Content-Security-Policy fehlt weiterhin; sie darf wegen vorhandener Inline-/Service-Worker-Pfade nicht blind aktiviert werden.
+## Verbleibende Warnungen / getrennte Freigabestrecken
 
-Zusätzlich bleiben als Härtungsaufgaben außerhalb des aktuellen Gate-Outputs:
+Der aktuelle TÜV-Gate-Lauf meldet noch vier Warnungen, aber keine Blocker:
 
-- Der lokale PIN-Schutz nutzt weiterhin eine vierstellige PIN und sperrt nach fünf Fehlversuchen für 30 Sekunden. Eine stärkere eskalierende Rate-Limit-Strategie bleibt sinnvoll.
-- Die PBKDF2-Iterationszahl der importierten Superadmin-PIN wird im Loginpfad noch nicht mit einer klaren Ober-/Untergrenze validiert.
-- Dateiimporte lesen ausgewählte Dateien zunächst vollständig über `File.text()`. Eine explizite Vorabgrenze der Importdateigröße ist noch nicht nachgewiesen.
+- `KCB-CHECK-1` schützt Austausch-/Konfigurationspakete weiterhin nur mit einer Prüfsumme statt einer kryptografischen Herkunftsprüfung. Für vertrauenswürdige Manager-Pakete ist Signatur oder HMAC vorzusehen.
+- `fiscalMode` steht standardmäßig auf `off`. TSE/KassenSichV bleibt eine eigene fachlich-regulatorische Freigabestrecke.
+- Dynamische Katalog-/Warenkorbwerte werden teilweise über `innerHTML` aufgebaut. Die vollständige Stored-DOM-XSS-Kette muss noch abgeschlossen geprüft werden.
+- Netlify besitzt auf der Audit-Spur bereits HSTS, aber noch keine getestete Content-Security-Policy. CSP darf wegen vorhandener Inline-/Service-Worker-Pfade nicht blind aktiviert werden.
+
+Weitere Rollout-/Härtungspunkte außerhalb des aktuellen Blocker-Gates:
+
+- **KCASH2-Provisionierung:** Vor einem späteren produktiven Rollout muss `kc_cash_transfer_secret_v2` je vorgesehenem Sicherheitskonzept sicher provisioniert werden. Ohne mindestens 32 Zeichen langes, im Local Vault geschütztes Geheimnis verweigert der KCASH2-Pfad die Verarbeitung.
+- **Legacy-KCASH1:** Alte `KCASH1`-Codes werden bewusst nicht mehr akzeptiert. Eine eventuelle Migration muss separat, kontrolliert und nachvollziehbar erfolgen.
+- **Legacy-Restore:** Bereits früher gespeicherte Remote-Transaktionen ohne `KC_TX_DIGEST_V1` werden nicht ungeprüft übernommen. Altbestände müssen vor Rollout migriert, archiviert oder als Legacy-Quarantäne behandelt werden.
+- Der lokale PIN-Schutz nutzt weiterhin eine vierstellige PIN und sperrt nach fünf Fehlversuchen für 30 Sekunden. Eine eskalierende Rate-Limit-Strategie bleibt sinnvoll.
+- Die PBKDF2-Iterationszahl der importierten Superadmin-PIN sollte im Loginpfad zusätzlich klar nach oben und unten begrenzt werden.
+- Dateiimporte sollten vor `File.text()` eine explizite Dateigrößenbegrenzung erhalten.
+- Supabase-EXECUTE- und Cron-Grants sollten nach Funktionsbedarf minimiert werden, jedoch erst nach Abhängigkeits- und Regressionstest.
 
 ## Bereits eingeführte und getestete Abhilfe auf der Audit-Spur
 
-- `AuditCore` V0.2.1 entfernt Authorization-Header, API-Keys, Private Keys, Service-Role-, Recovery- und weitere Geheimnisfelder aus Audit-Metadaten. Regressionstest: `tests/audit-core-redaction.test.cjs`.
-- `HealthCore` V1.0.1 redigiert Geheimnisse auch aus generischen Fehlertexten und sanitisiert den Diagnose-Status vor dem Export. Regressionstest: `tests/health-core-redaction.test.cjs`.
-- `KCSecureSync` V0.3.1 begrenzt PBKDF2-Iterationswerte und Paketgrößen und validiert Salt-/IV-Längen vor der Entschlüsselung. Regressionstest: `tests/secure-sync-envelope.test.cjs`.
-- `SecurityCore` V0.3.0 erzwingt fail-closed Berechtigungen, maximale Sessiondauer und frisches Step-Up. Ein Entwickler-Login erfüllt Step-Up ausdrücklich nicht. Regressionstest: `tests/security-core-stepup.test.cjs`.
-- `ProductInfoCore` V0.2.0 erlaubt `approved` nur noch mit Quelle, Freigabedatum, freigebender Person und vollständig geprüften Big-14-Allergenen. Regressionstest: `tests/product-info-approval.test.cjs`.
-- Der Failover-Monitor rendert externe Gateway-Statuswerte auf der Audit-Spur über sichere DOM-Methoden statt über ungeprüftes `innerHTML`. Regressionstest: `tests/failover-monitor-xss.test.cjs`.
-- Der POS-Audit-Runtimepfad bindet `TransactionIntegrityCore`, Dual-Gateway-Bootstrap und den verschlüsselten Local Vault ein. Regressionstest: `tests/runtime-bootstrap.test.cjs`.
-- Failover-Client V1.4 signiert `/sync/*`-Anfragen mit HMAC-SHA-256, Geräte-ID, Zeitstempel und Nonce. Das Gerätegeheimnis muss aus einem durch den Local Vault geschützten Schlüssel kommen; ohne Provisionierung wird fail-closed abgebrochen.
-- Reconcile arbeitet clientseitig in maximal 1000er ID-Chunks, liest Remote-IDs und Restore-Daten in 500er Seiten und drosselt automatisch ausgelöste Voll-Reconciles auf mindestens 60 Sekunden Abstand. Die Skalierungsregression prüft 1205 IDs, mehrere Paging-Aufrufe und einen maximalen Reconcile-Batch von 1000.
-- `TransactionIntegrityCore` V0.1.0 erzeugt rekursiv kanonische SHA-256-Inhaltsdigests. Der Failover-Client versieht neue Uploads mit diesem Digest, verifiziert Remote-Datensätze vor Restore und verweigert einen Merge bei fehlendem oder falschem Digest. Regressionen prüfen sowohl erfolgreiche Wiederherstellung als auch manipulierte Remote-Daten. `tests/transaction-integrity-core.test.cjs` und `tests/failover-sync.test.cjs`.
-- Das Gateway-Audit-Gegenstück besitzt HMAC-Geräteauthentifizierung, Zeitfenster, Nonce-Replay-Schutz, Geräte-zu-Kassen-Bindung, Origin-Allowlist, Rate-Limit, getrennte Diagnoseberechtigung sowie Cursor-Paging und begrenzten Membership-Reconcile. Der Gateway-PR besteht Auth-, Paging- und TÜV-Regression vollständig grün. Das gilt nur für den Audit-Zweig; Produktion ist dadurch nicht verändert.
-- `CashTransferAuthCore` V0.1.0 definiert das neue Format `KCASH2` mit HMAC-SHA-256, Kassenbindung, Gültigkeitszeitraum und Manipulationserkennung. Regressionstest: `tests/cash-transfer-auth-core.test.cjs`. Das aktuell verwendete `KCASH1` bleibt bis zur kontrollierten Integration/Migration ein Blocker.
+- `AuditCore` V0.2.1 redigiert Authorization-Header, API-Keys, Private Keys, Service-Role-, Recovery- und weitere Geheimnisfelder. Regression: `tests/audit-core-redaction.test.cjs`.
+- `HealthCore` V1.0.1 redigiert Geheimnisse auch aus generischen Fehlertexten und Diagnoseexporten. Regression: `tests/health-core-redaction.test.cjs`.
+- `KCSecureSync` V0.3.1 begrenzt PBKDF2-Aufwand und Paketgrößen und validiert Salt-/IV-Längen. Regression: `tests/secure-sync-envelope.test.cjs`.
+- `SecurityCore` V0.3.1 erzwingt fail-closed Berechtigungen, maximale Sessiondauer und frisches Step-Up; finanzielle Aktionen Rabatt, Entnahme und Tagesabschluss sind standardmäßig Step-Up-pflichtig. Regression: `tests/security-core-stepup.test.cjs`.
+- `ProductInfoCore` V0.2.0 erlaubt `approved` nur mit Quelle, Freigabedatum, freigebender Person und vollständig geprüften Big-14-Allergenen. Regression: `tests/product-info-approval.test.cjs`.
+- Der Failover-Monitor rendert externe Gateway-Statuswerte über sichere DOM-Methoden. Regression: `tests/failover-monitor-xss.test.cjs`.
+- Der POS-Audit-Runtimepfad bindet `TransactionIntegrityCore`, `CashTransferAuthCore`, Dual-Gateway-Bootstrap und den verschlüsselten Local Vault ein. Regression: `tests/runtime-bootstrap.test.cjs`.
+- `CashTransferAuthCore` V0.1.0 stellt `KCASH2` mit HMAC-SHA-256, Kassenbindung, Gültigkeitszeitraum und Manipulationserkennung bereit. Neue Bargeldübergaben werden signiert und codiert; Import und Scanner verifizieren vor der Übernahme. `KCASH1` wird explizit gesperrt. Regressionen: `tests/cash-transfer-auth-core.test.cjs` und `tests/pos-financial-security.test.cjs`.
+- Der Candidate-Entwickler-Bypass wurde auf der Audit-Spur deaktiviert und die sichtbare/latente Entwickler-Anmeldung entfernt. `tests/pos-financial-security.test.cjs` verhindert eine Wiederkehr.
+- Rabatt, Entnahme/Reklamation und Tagesabschluss sind im echten POS-Ausführungsweg an SecurityCore-Rechte gebunden. `tests/pos-financial-security.test.cjs` prüft diese Bindung statisch zusätzlich zum SecurityCore-Verhaltenstest.
+- Failover-Client V1.4 signiert `/sync/*`-Anfragen mit HMAC-SHA-256, Geräte-ID, Zeitstempel und Nonce. Das Gerätegeheimnis ist an den Local Vault gebunden; ohne Provisionierung wird fail-closed abgebrochen.
+- Reconcile arbeitet in maximal 1000er ID-Chunks, liest Remote-IDs und Restore-Daten in 500er Seiten und drosselt automatisch ausgelöste Voll-Reconciles auf mindestens 60 Sekunden Abstand. Die Skalierungsregression prüft 1205 IDs.
+- `TransactionIntegrityCore` V0.1.0 erzeugt kanonische SHA-256-Inhaltsdigests. Uploads tragen `KC_TX_DIGEST_V1`; Restore verifiziert den Digest und verweigert manipulierte Daten. Regressionen: `tests/transaction-integrity-core.test.cjs` und `tests/failover-sync.test.cjs`.
+- Das Gateway-Audit-Gegenstück besitzt HMAC-Geräteauthentifizierung, Zeitfenster, Nonce-Replay-Schutz, Geräte-zu-Kassen-Bindung, Origin-Allowlist, Rate-Limit, getrennte Diagnoseberechtigung sowie Cursor-Paging und begrenzten Membership-Reconcile. Der Gateway-Draft-PR ist auf seiner Audit-Spur vollständig grün.
 - Netlify erhält auf der Audit-Spur `Strict-Transport-Security: max-age=31536000`. Es erfolgte kein Deployment.
-- Die CI führt alle normalen Regressionstests vor dem absichtlich strengen Release-Gate aus. Der aktuelle Lauf bestätigt: Syntax, AuditCore, HealthCore, SecureSync, SecurityCore, Monitor-XSS, ProductInfo, Runtime-Bootstrap, TransactionIntegrity, KCASH2, Local Vault, Dual-Gateway sowie Offline-/Replay-/Reconcile-/Conflict-, Restore-Manipulations-, Chunking-, Paging- und Drosselungstests sind grün. Erst das Release-Gate stoppt erwartungsgemäß wegen der sechs verbleibenden Punkte.
+
+## Aktueller CI-Nachweis
+
+Der vollständige Lauf `KC Failover Regression` bestätigt erfolgreich:
+
+- Syntaxchecks,
+- AuditCore Secret-Redaction,
+- HealthCore Secret-Redaction,
+- SecureSync Envelope/KDF,
+- SecurityCore Finanz-Step-Up und Sessionablauf,
+- Failover-Monitor-XSS,
+- ProductInfo-Freigabe,
+- Runtime-Bootstrap einschließlich KCASH2,
+- Transaction-Integrity,
+- KCASH2-Authentizität,
+- POS-Finanzautorisierung und Entfernung des Entwickler-Bypasses,
+- verschlüsselten Local Vault,
+- Dual-Gateway-Failover,
+- Offline-Queue, Replay, Reconcile, Konflikterhalt, Restore-Manipulation, Chunking, Paging und Drosselung,
+- TÜV-Security-Release-Gate.
+
+Ergebnis des Gate-Tests: `PASS: Keine durch diesen Gate-Test erkannten Release-Blocker.`
 
 ## Read-only Live-Prüfung Datenbanken
 
 ### Supabase KC Core
 
 - 1 Auth-Benutzer, davon 0 anonym.
-- Die vom Advisor gemeldeten Admin-`SECURITY DEFINER`-Funktionen prüfen intern die angemeldete Rolle (`planner`, `duty_manager`, `admin`) bzw. binden Push-Receipts an `auth.uid()`. Die breiten EXECUTE-Grants bleiben ein Härtungspunkt, sind aber nicht gleichbedeutend mit einem offenen Adminzugang.
-- `kc_dp_report_error` ist absichtlich auch anonym aufrufbar, begrenzt Eingaben und besitzt für nicht angemeldete Aufrufer ein IP-basiertes Rate-Limit von 100 Meldungen in 5 Minuten.
+- Die vom Advisor gemeldeten Admin-`SECURITY DEFINER`-Funktionen prüfen intern die angemeldete Rolle (`planner`, `duty_manager`, `admin`) bzw. binden Push-Receipts an `auth.uid()`. Breite EXECUTE-Grants bleiben ein Härtungspunkt.
+- `kc_dp_report_error` ist absichtlich auch anonym aufrufbar, begrenzt Eingaben und besitzt für nicht angemeldete Aufrufer ein IP-basiertes Rate-Limit.
 
 ### Supabase Future Academy
 
-- 38 Auth-Benutzer, davon 35 anonyme Auth-Sitzungen. Das passt zum anonymen Teilnehmermodell.
+- 38 Auth-Benutzer, davon 35 anonyme Auth-Sitzungen; dies passt zum anonymen Teilnehmermodell.
 - Academy-Policies binden Teilnehmer- und Ereignisdaten an `owner_id = auth.uid()`.
-- KC-DP-Policies verwenden zusätzlich `kc_dp_is_permanent_user()`, das Nutzer mit `is_anonymous=true` ausdrücklich ausschließt.
-- `cron.job` und `cron.job_run_details` besitzen zwar SELECT-Rechte für `anon`/`authenticated`, die RLS-Policy erlaubt jedoch nur Zeilen mit `username = CURRENT_USER`; vorhandene Cron-Zeilen gehören ausschließlich `postgres`. Rechte trotzdem später auf notwendige Rollen minimieren.
+- KC-DP-Policies verwenden zusätzlich `kc_dp_is_permanent_user()`, das Nutzer mit `is_anonymous=true` ausschließt.
+- `cron.job` und `cron.job_run_details` besitzen breite SELECT-Rechte, die RLS-Policy begrenzt sichtbare Zeilen jedoch auf `username = CURRENT_USER`; Rechte später nach Funktionsbedarf minimieren.
 
 ### Neon KC Core Mirror
 
-- Für `kc_failover_transactions` existiert die eingeschränkte Rolle `kc_gateway_runtime` mit nur `SELECT` und `INSERT`; es wurden keine PUBLIC-Tabellenrechte in der Prüfung gefunden.
-- Aktuelle verschlüsselte Backups: letzter geprüfter Satz 36/36 Tabellen erfolgreich, Restore-/Integritätsprüfung 36 geprüft, 0 Fehler.
-- Frühere fehlgeschlagene Backup-/Restore-Testläufe sind historisch vorhanden; die nachfolgenden aktuellen Prüfungen stehen auf `ok`.
+- Für `kc_failover_transactions` existiert die eingeschränkte Rolle `kc_gateway_runtime` mit nur `SELECT` und `INSERT`; es wurden keine PUBLIC-Tabellenrechte gefunden.
+- Letzter geprüfter verschlüsselter Backup-Satz: 36/36 Tabellen erfolgreich; Restore-/Integritätsprüfung 36 geprüft, 0 Fehler.
 
 ## Nächste sichere Schritte
 
-- `KCASH2` kontrolliert in Erzeugung und Einlesepfad integrieren; `KCASH1` danach nur noch explizit als Legacy-Migration akzeptieren oder vollständig sperren.
-- Entwickler-Bypass und sichtbare Candidate-Schaltfläche in einer isolierten Änderung entfernen.
-- Rabatt, Entnahme/Reklamation und Tagesabschluss im echten Handler an SecurityCore-Rechte binden und anschließend UI-/Regressionstest durchführen.
-- Vor einem späteren Failover-Deployment die Behandlung bereits vorhandener Remote-Datensätze ohne neuen Digest festlegen und testen.
-- PIN-KDF-Grenzen, eskalierendes Rate-Limit und Importgrößenbegrenzung ergänzen.
-- DOM-XSS-Datenwege von Manager/Import bis `innerHTML` vollständig nachverfolgen und dynamische Werte konsequent escapen bzw. mit DOM-APIs setzen.
-- CSP erst nach Kompatibilitätstest mit den vorhandenen Inline-/Service-Worker-Pfaden aktivieren.
-- Supabase-EXECUTE- und Cron-Grants nach Funktionsbedarf minimieren, aber erst nach Abhängigkeits-/Regressionstest.
-- TSE/KassenSichV getrennt als fachliche Freigabestrecke behandeln.
+1. Audit-Draft weiter unveröffentlicht lassen und keine automatische Freigabe aus dem grünen Gate ableiten.
+2. KCASH2-Geräte-/Bargeldgeheimnis und Legacy-Regeln für einen späteren Rollout separat provisionieren und testen.
+3. KCB-Austauschpakete kryptografisch authentifizieren.
+4. DOM-XSS-Datenwege vollständig härten und danach eine kompatible CSP testen.
+5. PIN-/Import-Härtung und Supabase-Grants separat bearbeiten.
+6. TSE/KassenSichV als eigene fachlich-regulatorische Freigabestrecke abschließen.
 
 ## Nicht durchgeführt
 
 - Keine Änderung an `main`.
+- Kein Merge.
 - Kein Deployment.
 - Keine Supabase-Migration.
 - Keine Neon-Schemaänderung.
-- Keine Änderung an produktiven Secrets, Tokens oder Cloud-Konfigurationen.
+- Keine Provisionierung oder Rotation produktiver Secrets/Tokens.
+- Keine Änderung an Cloudflare-/Netlify-Produktivkonfigurationen.
