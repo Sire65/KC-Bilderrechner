@@ -21,23 +21,27 @@ Zusätzlich verlangt `SecurityCore` für Rabatt, Entnahme und Tagesabschluss sta
 
 Der frühere Restore-Integritätsblocker ist ebenfalls beseitigt: neue Failover-Uploads erhalten einen stabilen `KC_TX_DIGEST_V1`-Digest; Restore-Datensätze werden vor dem lokalen Merge verifiziert. Manipulierte Remote-Daten werden fail-closed abgelehnt.
 
+Die zuvor offene kryptografische Herkunftsprüfung für KCB-Austauschpakete ist auf der Audit-Spur ebenfalls umgesetzt: `KCB-CONFIG-1` und `KCB-EVENT-1` werden über `KCB-HMAC-SHA256-1` authentifiziert. Manipulierte, abgelaufene, nicht freigegebene und reine Prüfsummen-Legacy-Pakete werden fail-closed abgelehnt. Export und Import bleiben gesperrt, solange das Authentifizierungsmodul bzw. der geschützte Schlüssel nicht betriebsbereit ist.
+
 ## Verbleibende Warnungen / getrennte Freigabestrecken
 
-Der aktuelle TÜV-Gate-Lauf meldet noch vier Warnungen, aber keine Blocker:
+Der aktuelle TÜV-Gate-Lauf meldet weiterhin Warnungen, aber keine Blocker:
 
-- `KCB-CHECK-1` schützt Austausch-/Konfigurationspakete weiterhin nur mit einer Prüfsumme statt einer kryptografischen Herkunftsprüfung. Für vertrauenswürdige Manager-Pakete ist Signatur oder HMAC vorzusehen.
+- Der frühere `KCB-CHECK-1`-Prüfsummenpfad ist im Legacy-Code von `pos/app.js` noch physisch vorhanden. Der Audit-Runtimepfad überschreibt und sperrt diesen Pfad fail-closed. Vor einer finalen Produktionskonsolidierung soll der tote Legacy-Code entfernt werden.
 - `fiscalMode` steht standardmäßig auf `off`. TSE/KassenSichV bleibt eine eigene fachlich-regulatorische Freigabestrecke.
-- Dynamische Katalog-/Warenkorbwerte werden teilweise über `innerHTML` aufgebaut. Die vollständige Stored-DOM-XSS-Kette muss noch abgeschlossen geprüft werden.
+- Dynamische Katalog-/Warenkorbwerte werden teilweise über `innerHTML` aufgebaut. Die vollständige Stored-DOM-XSS-Kette muss noch abgeschlossen geprüft und gehärtet werden.
 - Netlify besitzt auf der Audit-Spur bereits HSTS, aber noch keine getestete Content-Security-Policy. CSP darf wegen vorhandener Inline-/Service-Worker-Pfade nicht blind aktiviert werden.
 
 Weitere Rollout-/Härtungspunkte außerhalb des aktuellen Blocker-Gates:
 
+- **KCB-Provisionierung:** Vor einem späteren produktiven Rollout muss `kc_exchange_secret_v2` nach dem vorgesehenen Schlüsselkonzept sicher im Local Vault provisioniert und mit dem autorisierten externen Manager abgestimmt werden. Ohne mindestens 32 Zeichen langes geschütztes Geheimnis bleibt der KCB-Austausch gesperrt.
+- **KCB-Legacy:** Reine `KCB-CHECK-1`-/`KC_EXCHANGE_PACKAGE`-Pfade sind für vertrauenswürdige Konfigurationsimporte nicht mehr ausreichend und werden vom neuen Audit-Laufzeitpfad gesperrt. Eine eventuelle Bestandsmigration muss separat erfolgen.
 - **KCASH2-Provisionierung:** Vor einem späteren produktiven Rollout muss `kc_cash_transfer_secret_v2` je vorgesehenem Sicherheitskonzept sicher provisioniert werden. Ohne mindestens 32 Zeichen langes, im Local Vault geschütztes Geheimnis verweigert der KCASH2-Pfad die Verarbeitung.
 - **Legacy-KCASH1:** Alte `KCASH1`-Codes werden bewusst nicht mehr akzeptiert. Eine eventuelle Migration muss separat, kontrolliert und nachvollziehbar erfolgen.
 - **Legacy-Restore:** Bereits früher gespeicherte Remote-Transaktionen ohne `KC_TX_DIGEST_V1` werden nicht ungeprüft übernommen. Altbestände müssen vor Rollout migriert, archiviert oder als Legacy-Quarantäne behandelt werden.
 - Der lokale PIN-Schutz nutzt weiterhin eine vierstellige PIN und sperrt nach fünf Fehlversuchen für 30 Sekunden. Eine eskalierende Rate-Limit-Strategie bleibt sinnvoll.
 - Die PBKDF2-Iterationszahl der importierten Superadmin-PIN sollte im Loginpfad zusätzlich klar nach oben und unten begrenzt werden.
-- Dateiimporte sollten vor `File.text()` eine explizite Dateigrößenbegrenzung erhalten.
+- Der KCB-Austausch begrenzt neue Importdateien im gehärteten Audit-Pfad auf 5 MiB. Andere Dateiimporte sollen weiterhin vor `File.text()` auf explizite Größenlimits geprüft werden.
 - Supabase-EXECUTE- und Cron-Grants sollten nach Funktionsbedarf minimiert werden, jedoch erst nach Abhängigkeits- und Regressionstest.
 
 ## Bereits eingeführte und getestete Abhilfe auf der Audit-Spur
@@ -48,7 +52,8 @@ Weitere Rollout-/Härtungspunkte außerhalb des aktuellen Blocker-Gates:
 - `SecurityCore` V0.3.1 erzwingt fail-closed Berechtigungen, maximale Sessiondauer und frisches Step-Up; finanzielle Aktionen Rabatt, Entnahme und Tagesabschluss sind standardmäßig Step-Up-pflichtig. Regression: `tests/security-core-stepup.test.cjs`.
 - `ProductInfoCore` V0.2.0 erlaubt `approved` nur mit Quelle, Freigabedatum, freigebender Person und vollständig geprüften Big-14-Allergenen. Regression: `tests/product-info-approval.test.cjs`.
 - Der Failover-Monitor rendert externe Gateway-Statuswerte über sichere DOM-Methoden. Regression: `tests/failover-monitor-xss.test.cjs`.
-- Der POS-Audit-Runtimepfad bindet `TransactionIntegrityCore`, `CashTransferAuthCore`, Dual-Gateway-Bootstrap und den verschlüsselten Local Vault ein. Regression: `tests/runtime-bootstrap.test.cjs`.
+- Der POS-Audit-Runtimepfad bindet `TransactionIntegrityCore`, `CashTransferAuthCore`, `KCBExchangeAuth`, Dual-Gateway-Bootstrap und den verschlüsselten Local Vault ein. Regression: `tests/runtime-bootstrap.test.cjs`.
+- `KCBExchangeAuth` V1.0.0 authentifiziert `KCB-CONFIG-1` und `KCB-EVENT-1` mit HMAC-SHA-256 (`KCB-HMAC-SHA256-1`). Der POS-Bootstrap signiert Exporte, verifiziert Importe vor der Übernahme, blockiert Prüfsummen-Legacy-Pakete und sperrt den Austausch fail-closed, wenn Authentifizierungsmodul oder Schlüssel fehlen. Regressionen: `tests/exchange-auth-core.test.cjs` und `tests/kcb-exchange-pos-bootstrap.test.cjs`.
 - `CashTransferAuthCore` V0.1.0 stellt `KCASH2` mit HMAC-SHA-256, Kassenbindung, Gültigkeitszeitraum und Manipulationserkennung bereit. Neue Bargeldübergaben werden signiert und codiert; Import und Scanner verifizieren vor der Übernahme. `KCASH1` wird explizit gesperrt. Regressionen: `tests/cash-transfer-auth-core.test.cjs` und `tests/pos-financial-security.test.cjs`.
 - Der Candidate-Entwickler-Bypass wurde auf der Audit-Spur deaktiviert und die sichtbare/latente Entwickler-Anmeldung entfernt. `tests/pos-financial-security.test.cjs` verhindert eine Wiederkehr.
 - Rabatt, Entnahme/Reklamation und Tagesabschluss sind im echten POS-Ausführungsweg an SecurityCore-Rechte gebunden. `tests/pos-financial-security.test.cjs` prüft diese Bindung statisch zusätzlich zum SecurityCore-Verhaltenstest.
@@ -69,9 +74,10 @@ Der vollständige Lauf `KC Failover Regression` bestätigt erfolgreich:
 - SecurityCore Finanz-Step-Up und Sessionablauf,
 - Failover-Monitor-XSS,
 - ProductInfo-Freigabe,
-- Runtime-Bootstrap einschließlich KCASH2,
+- Runtime-Bootstrap einschließlich KCASH2 und KCB-Austauschauthentifizierung,
 - Transaction-Integrity,
 - KCASH2-Authentizität,
+- KCB-HMAC-Authentizität und POS-Integrationspfad,
 - POS-Finanzautorisierung und Entfernung des Entwickler-Bypasses,
 - verschlüsselten Local Vault,
 - Dual-Gateway-Failover,
@@ -103,10 +109,10 @@ Ergebnis des Gate-Tests: `PASS: Keine durch diesen Gate-Test erkannten Release-B
 ## Nächste sichere Schritte
 
 1. Audit-Draft weiter unveröffentlicht lassen und keine automatische Freigabe aus dem grünen Gate ableiten.
-2. KCASH2-Geräte-/Bargeldgeheimnis und Legacy-Regeln für einen späteren Rollout separat provisionieren und testen.
-3. KCB-Austauschpakete kryptografisch authentifizieren.
+2. KCB- und KCASH2-Geheimnisse sowie Legacy-Regeln für einen späteren Rollout separat provisionieren und mit den autorisierten Gegenstellen testen.
+3. Den physisch verbliebenen `KCB-CHECK-1`-Legacy-Code bei der finalen Produktionskonsolidierung entfernen, ohne den laufenden Stand vorzeitig zu verändern.
 4. DOM-XSS-Datenwege vollständig härten und danach eine kompatible CSP testen.
-5. PIN-/Import-Härtung und Supabase-Grants separat bearbeiten.
+5. PIN-/weitere Import-Härtung und Supabase-Grants separat bearbeiten.
 6. TSE/KassenSichV als eigene fachlich-regulatorische Freigabestrecke abschließen.
 
 ## Nicht durchgeführt
