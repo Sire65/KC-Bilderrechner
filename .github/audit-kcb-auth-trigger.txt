@@ -1,0 +1,1 @@
+Trigger für den einmaligen KCB-HMAC-Auditlauf am 2026-08-19. Keine Produktionsänderung.
