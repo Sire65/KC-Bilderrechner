@@ -3,6 +3,13 @@
   const api=factory();
   if(typeof module==='object'&&module.exports)module.exports=api;
   if(root)root.KCFreeMonitorCore=api;
+  if(root?.document&&!root.document.querySelector('script[data-kc-free-live]')){
+    const s=root.document.createElement('script');
+    s.src='free-monitor-live.js';
+    s.async=true;
+    s.dataset.kcFreeLive='1';
+    root.document.head.appendChild(s);
+  }
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   const DAY=86400000;
   const DEFAULT_THRESHOLDS={warn:50,danger:75,critical:90};
