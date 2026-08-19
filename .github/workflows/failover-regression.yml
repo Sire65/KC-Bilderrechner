@@ -9,6 +9,7 @@ on:
       - 'cores/health-core/health-core.js'
       - 'cores/security-core/security-core.js'
       - 'cores/security-core/crypto-secure-sync.js'
+      - 'cores/product-info-core/product-info-core.js'
       - 'pc-manager/failover-monitor.html'
       - 'pos/app.js'
       - 'pos/index.html'
@@ -22,6 +23,7 @@ on:
       - 'tests/health-core-redaction.test.cjs'
       - 'tests/secure-sync-envelope.test.cjs'
       - 'tests/failover-monitor-xss.test.cjs'
+      - 'tests/product-info-approval.test.cjs'
       - 'tests/tuv-security-release-gate.test.cjs'
       - '.github/workflows/failover-regression.yml'
   pull_request:
@@ -44,6 +46,7 @@ jobs:
           node --check cores/health-core/health-core.js
           node --check cores/security-core/security-core.js
           node --check cores/security-core/crypto-secure-sync.js
+          node --check cores/product-info-core/product-info-core.js
           node --check pos/local-vault-bootstrap.js
           node --check pos/dual-gateway-bootstrap.js
           node --check pos/service-worker.js
@@ -51,6 +54,7 @@ jobs:
           node --check tests/health-core-redaction.test.cjs
           node --check tests/secure-sync-envelope.test.cjs
           node --check tests/failover-monitor-xss.test.cjs
+          node --check tests/product-info-approval.test.cjs
           node --check tests/tuv-security-release-gate.test.cjs
       - name: AuditCore secret redaction regression
         run: node tests/audit-core-redaction.test.cjs
@@ -60,6 +64,8 @@ jobs:
         run: node tests/secure-sync-envelope.test.cjs
       - name: Failover monitor XSS regression
         run: node tests/failover-monitor-xss.test.cjs
+      - name: Product info approval regression
+        run: node tests/product-info-approval.test.cjs
       - name: Install test dependency
         run: npm install --no-save fake-indexeddb@6.2.2
       - name: Encrypted Local Vault regression
