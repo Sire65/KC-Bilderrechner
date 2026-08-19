@@ -1,8 +1,7 @@
 'use strict';
 
 const assert=require('node:assert/strict');
-const {webcrypto}=require('node:crypto');
-global.crypto=webcrypto;
+assert.ok(globalThis.crypto?.subtle,'Node WebCrypto wird für den Digest-Test benötigt.');
 const core=require('../cores/transaction-integrity-core/transaction-integrity-core.js');
 
 (async()=>{
