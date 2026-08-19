@@ -19,6 +19,8 @@ const runtimeFlags = read('shared/runtime-flags.js');
 const securityCore = read('cores/security-core/security-core.js');
 const secureSync = read('cores/security-core/crypto-secure-sync.js');
 const notification = read('cores/notification-core/notification-core.js');
+const exchangeAuth = read('exchange-core-v31/exchange-auth.js');
+const exchangeBootstrap = read('pos/kcb-exchange-auth-bootstrap.js');
 
 const blockers = [];
 const warnings = [];
@@ -70,8 +72,19 @@ const scannerCash2 = /code\.startsWith\(["']KCASH2:["']\)/.test(app) && /await\s
 if (!(cashAuthRuntime && cashSecretProtected && cashVerify && cashCreateAuthenticated && legacyCashBlocked && scannerCash2)) {
   blockers.push('KCASH2-Herkunftsauthentifizierung ist nicht vollständig fail-closed in Erzeugung, Import und Scannerpfad integriert.');
 }
-if (/KCB-CHECK-1/.test(app) && !/(HMAC|subtle\.verify|signature)/i.test(around(app, 'function validatePosExchange', 7000))) {
-  warnings.push('KCB-Konfigurations-/Austauschpakete nutzen eine Prüfsumme statt kryptografischer Herkunftsprüfung. Signatur/HMAC für vertrauenswürdige Manager-Pakete vorsehen.');
+
+const exchangeAuthRuntime = /exchange-core-v31\/exchange-auth\.js/.test(runtimeFlags) && /kcb-exchange-auth-bootstrap\.js/.test(runtimeFlags);
+const exchangeHmacCore = /KCB-HMAC-SHA256-1/.test(exchangeAuth) && /subtle\.sign/.test(exchangeAuth) && /subtle\.verify/.test(exchangeAuth);
+const exchangeSecretProtected = /SECRET_KEY='kc_exchange_secret_v2'/.test(exchangeBootstrap) && /vault\.protectedKey\(SECRET_KEY\)/.test(exchangeBootstrap) && /secret\.length<32/.test(exchangeBootstrap);
+const exchangeSigns = /auth\.sign\(/.test(exchangeBootstrap) && /exportKCExchangeSales/.test(exchangeBootstrap) && /exportAdminChanges/.test(exchangeBootstrap);
+const exchangeVerifies = /auth\.verify\(/.test(exchangeBootstrap) && /verifiedPackages\.has/.test(exchangeBootstrap) && /root\.validatePosExchange=syncValidation/.test(exchangeBootstrap);
+const exchangeLegacyBlocked = /LEGACY_CHECKSUM_PACKAGE_BLOCKED/.test(exchangeBootstrap) && /Legacy-Austauschpaket/.test(exchangeBootstrap);
+const exchangeFailClosed = /exchangeGuard/.test(runtimeFlags) && /verifyExchangeBootstrap/.test(runtimeFlags) && /node\.disabled=true/.test(runtimeFlags);
+if (!(exchangeAuthRuntime && exchangeHmacCore && exchangeSecretProtected && exchangeSigns && exchangeVerifies && exchangeLegacyBlocked && exchangeFailClosed)) {
+  blockers.push('KCB-Konfigurations-/Austauschpakete sind im tatsächlichen POS-Laufzeitpfad nicht vollständig HMAC-authentifiziert und fail-closed abgesichert.');
+}
+if (/KCB-CHECK-1/.test(app)) {
+  warnings.push('Der alte KCB-CHECK-1-Prüfsummenpfad ist im Legacy-App-Code noch physisch vorhanden. Der Audit-Runtimepfad überschreibt und sperrt ihn; vor finaler Produktionskonsolidierung sollte der tote Legacy-Code entfernt werden.');
 }
 
 const dualGatewayWired=/dual-gateway-bootstrap\.js/.test(index)||/dual-gateway-bootstrap\.js/.test(runtimeFlags);
