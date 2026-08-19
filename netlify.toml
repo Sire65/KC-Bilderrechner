@@ -7,6 +7,7 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "same-origin"
     Permissions-Policy = "camera=(self), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000"
 
 [[headers]]
   for = "/pos/index.html"
