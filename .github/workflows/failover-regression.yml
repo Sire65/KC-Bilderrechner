@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, audit/tuv-hardening-2026-08-18]
     paths:
+      - 'DEEP_SYSTEM_AUDIT_2026-08-19.md'
       - 'cores/notification-core/notification-core.js'
       - 'cores/audit-core/audit-core.js'
       - 'cores/health-core/health-core.js'
