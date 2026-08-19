@@ -6,7 +6,7 @@ Diese Prüfspur darf den laufenden Produktionsstand nicht verändern. Änderunge
 
 ## Status des automatisierten Release-Gates
 
-Der aktuelle vollständige CI-Lauf ist auf dem Audit-Zweig **grün**. Das TÜV-Security-Release-Gate meldet **keinen erkannten kritischen Release-Blocker** mehr.
+Der aktuelle vollständige CI-Lauf ist auf dem Audit-Zweig **grün**. Der Lauf `KC Failover Regression #82` einschließlich DOM-Safety- und CSP-Regressionsprüfung ist erfolgreich abgeschlossen. Das TÜV-Security-Release-Gate meldet **keinen erkannten kritischen Release-Blocker** mehr.
 
 Die sechs zuletzt offenen POS-Blocker sind auf der Audit-Spur technisch beseitigt und durch Regressionstests abgesichert:
 
@@ -23,14 +23,16 @@ Der frühere Restore-Integritätsblocker ist ebenfalls beseitigt: neue Failover-
 
 Die zuvor offene kryptografische Herkunftsprüfung für KCB-Austauschpakete ist auf der Audit-Spur ebenfalls umgesetzt: `KCB-CONFIG-1` und `KCB-EVENT-1` werden über `KCB-HMAC-SHA256-1` authentifiziert. Manipulierte, abgelaufene, nicht freigegebene und reine Prüfsummen-Legacy-Pakete werden fail-closed abgelehnt. Export und Import bleiben gesperrt, solange das Authentifizierungsmodul bzw. der geschützte Schlüssel nicht betriebsbereit ist.
 
+Die zuvor offene Stored-DOM-XSS-Strecke ist auf der Audit-Spur ebenfalls gehärtet: `DomSafetyCore` wird vor dem ersten POS-Render geladen, kapselt nachfolgende `innerHTML`-Zuweisungen und entfernt ausführbare Tags/Attribute, unsichere URL-Schemata und nicht freigegebene Inline-Styles. Der PC-Manager-Failover-/Super-GAU-Monitor rendert Gateway-, Test- und Historienwerte zusätzlich ausschließlich über sichere DOM-Methoden und `textContent`.
+
+Die POS-CSP ist auf der Audit-Spur aktiviert und regressionsgeprüft. Sie blockiert nicht freigegebene Inline-/Event-Skripte, Objekte, Framing und unsichere Basis-URLs. Die beiden bestehenden Druckhelfer bleiben ausschließlich über feste SHA-256-CSP-Hashes zugelassen. `style-src` bleibt wegen vorhandener Inline-Layoutregeln gezielt auf `'self' 'unsafe-inline'`; Script-Inline-Ausführung bleibt dagegen gesperrt.
+
 ## Verbleibende Warnungen / getrennte Freigabestrecken
 
 Der aktuelle TÜV-Gate-Lauf meldet weiterhin Warnungen, aber keine Blocker:
 
 - Der frühere `KCB-CHECK-1`-Prüfsummenpfad ist im Legacy-Code von `pos/app.js` noch physisch vorhanden. Der Audit-Runtimepfad überschreibt und sperrt diesen Pfad fail-closed. Vor einer finalen Produktionskonsolidierung soll der tote Legacy-Code entfernt werden.
 - `fiscalMode` steht standardmäßig auf `off`. TSE/KassenSichV bleibt eine eigene fachlich-regulatorische Freigabestrecke.
-- Dynamische Katalog-/Warenkorbwerte werden teilweise über `innerHTML` aufgebaut. Die vollständige Stored-DOM-XSS-Kette muss noch abgeschlossen geprüft und gehärtet werden.
-- Netlify besitzt auf der Audit-Spur bereits HSTS, aber noch keine getestete Content-Security-Policy. CSP darf wegen vorhandener Inline-/Service-Worker-Pfade nicht blind aktiviert werden.
 
 Weitere Rollout-/Härtungspunkte außerhalb des aktuellen Blocker-Gates:
 
@@ -51,8 +53,10 @@ Weitere Rollout-/Härtungspunkte außerhalb des aktuellen Blocker-Gates:
 - `KCSecureSync` V0.3.1 begrenzt PBKDF2-Aufwand und Paketgrößen und validiert Salt-/IV-Längen. Regression: `tests/secure-sync-envelope.test.cjs`.
 - `SecurityCore` V0.3.1 erzwingt fail-closed Berechtigungen, maximale Sessiondauer und frisches Step-Up; finanzielle Aktionen Rabatt, Entnahme und Tagesabschluss sind standardmäßig Step-Up-pflichtig. Regression: `tests/security-core-stepup.test.cjs`.
 - `ProductInfoCore` V0.2.0 erlaubt `approved` nur mit Quelle, Freigabedatum, freigebender Person und vollständig geprüften Big-14-Allergenen. Regression: `tests/product-info-approval.test.cjs`.
-- Der Failover-Monitor rendert externe Gateway-Statuswerte über sichere DOM-Methoden. Regression: `tests/failover-monitor-xss.test.cjs`.
-- Der POS-Audit-Runtimepfad bindet `TransactionIntegrityCore`, `CashTransferAuthCore`, `KCBExchangeAuth`, Dual-Gateway-Bootstrap und den verschlüsselten Local Vault ein. Regression: `tests/runtime-bootstrap.test.cjs`.
+- Der Failover-/Super-GAU-Monitor rendert externe Gateway-Statuswerte, Testresultate und Historieneinträge über sichere DOM-Methoden. Regression: `tests/failover-monitor-xss.test.cjs`.
+- `DomSafetyCore` V0.1.0 filtert dynamisches HTML vor dem Rendern, entfernt Script-/Frame-/Object-/SVG-/Math-Pfade, Eventattribute, `srcdoc`, unsichere URL-Schemata und nicht freigegebene Inline-Styles. Regression: `tests/dom-safety-core.test.cjs`.
+- Der POS-Audit-Runtimepfad lädt `DomSafetyCore` vor `TransactionIntegrityCore`, `CashTransferAuthCore`, `KCBExchangeAuth`, Dual-Gateway-Bootstrap und dem verschlüsselten Local Vault. Regression: `tests/runtime-bootstrap.test.cjs`.
+- Die POS-CSP in `netlify.toml` setzt u. a. `default-src 'self'`, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`, `script-src-attr 'none'`, einen auf Self plus zwei feste Druckskript-Hashes beschränkten `script-src`, sowie kontrollierte Worker-/Image-/Connect-Regeln. Regression: `tests/csp-policy.test.cjs`.
 - `KCBExchangeAuth` V1.0.0 authentifiziert `KCB-CONFIG-1` und `KCB-EVENT-1` mit HMAC-SHA-256 (`KCB-HMAC-SHA256-1`). Der POS-Bootstrap signiert Exporte, verifiziert Importe vor der Übernahme, blockiert Prüfsummen-Legacy-Pakete und sperrt den Austausch fail-closed, wenn Authentifizierungsmodul oder Schlüssel fehlen. Regressionen: `tests/exchange-auth-core.test.cjs` und `tests/kcb-exchange-pos-bootstrap.test.cjs`.
 - `CashTransferAuthCore` V0.1.0 stellt `KCASH2` mit HMAC-SHA-256, Kassenbindung, Gültigkeitszeitraum und Manipulationserkennung bereit. Neue Bargeldübergaben werden signiert und codiert; Import und Scanner verifizieren vor der Übernahme. `KCASH1` wird explizit gesperrt. Regressionen: `tests/cash-transfer-auth-core.test.cjs` und `tests/pos-financial-security.test.cjs`.
 - Der Candidate-Entwickler-Bypass wurde auf der Audit-Spur deaktiviert und die sichtbare/latente Entwickler-Anmeldung entfernt. `tests/pos-financial-security.test.cjs` verhindert eine Wiederkehr.
@@ -61,20 +65,23 @@ Weitere Rollout-/Härtungspunkte außerhalb des aktuellen Blocker-Gates:
 - Reconcile arbeitet in maximal 1000er ID-Chunks, liest Remote-IDs und Restore-Daten in 500er Seiten und drosselt automatisch ausgelöste Voll-Reconciles auf mindestens 60 Sekunden Abstand. Die Skalierungsregression prüft 1205 IDs.
 - `TransactionIntegrityCore` V0.1.0 erzeugt kanonische SHA-256-Inhaltsdigests. Uploads tragen `KC_TX_DIGEST_V1`; Restore verifiziert den Digest und verweigert manipulierte Daten. Regressionen: `tests/transaction-integrity-core.test.cjs` und `tests/failover-sync.test.cjs`.
 - Das Gateway-Audit-Gegenstück besitzt HMAC-Geräteauthentifizierung, Zeitfenster, Nonce-Replay-Schutz, Geräte-zu-Kassen-Bindung, Origin-Allowlist, Rate-Limit, getrennte Diagnoseberechtigung sowie Cursor-Paging und begrenzten Membership-Reconcile. Der Gateway-Draft-PR ist auf seiner Audit-Spur vollständig grün.
-- Netlify erhält auf der Audit-Spur `Strict-Transport-Security: max-age=31536000`. Es erfolgte kein Deployment.
+- Netlify erhält auf der Audit-Spur `Strict-Transport-Security: max-age=31536000` sowie die getestete POS-CSP. Es erfolgte kein Deployment.
+- Der zwischenzeitlich neue `main`-Stand mit dem benutzerfreundlichen Super-GAU-Testcenter wurde in die Audit-Spur übernommen und mit der vorhandenen XSS-Härtung konfliktfrei konsolidiert. `main` selbst wurde dabei nicht verändert.
 
 ## Aktueller CI-Nachweis
 
-Der vollständige Lauf `KC Failover Regression` bestätigt erfolgreich:
+Der vollständige Lauf `KC Failover Regression #82` bestätigt erfolgreich:
 
 - Syntaxchecks,
 - AuditCore Secret-Redaction,
 - HealthCore Secret-Redaction,
 - SecureSync Envelope/KDF,
 - SecurityCore Finanz-Step-Up und Sessionablauf,
-- Failover-Monitor-XSS,
+- Failover-/Super-GAU-Monitor-XSS,
+- DOM-Safety,
+- CSP-Policy,
 - ProductInfo-Freigabe,
-- Runtime-Bootstrap einschließlich KCASH2 und KCB-Austauschauthentifizierung,
+- Runtime-Bootstrap einschließlich DOM-Safety, KCASH2 und KCB-Austauschauthentifizierung,
 - Transaction-Integrity,
 - KCASH2-Authentizität,
 - KCB-HMAC-Authentizität und POS-Integrationspfad,
@@ -111,14 +118,13 @@ Ergebnis des Gate-Tests: `PASS: Keine durch diesen Gate-Test erkannten Release-B
 1. Audit-Draft weiter unveröffentlicht lassen und keine automatische Freigabe aus dem grünen Gate ableiten.
 2. KCB- und KCASH2-Geheimnisse sowie Legacy-Regeln für einen späteren Rollout separat provisionieren und mit den autorisierten Gegenstellen testen.
 3. Den physisch verbliebenen `KCB-CHECK-1`-Legacy-Code bei der finalen Produktionskonsolidierung entfernen, ohne den laufenden Stand vorzeitig zu verändern.
-4. DOM-XSS-Datenwege vollständig härten und danach eine kompatible CSP testen.
-5. PIN-/weitere Import-Härtung und Supabase-Grants separat bearbeiten.
-6. TSE/KassenSichV als eigene fachlich-regulatorische Freigabestrecke abschließen.
+4. PIN-/weitere Import-Härtung und Supabase-Grants separat bearbeiten.
+5. TSE/KassenSichV als eigene fachlich-regulatorische Freigabestrecke abschließen.
 
 ## Nicht durchgeführt
 
 - Keine Änderung an `main`.
-- Kein Merge.
+- Kein Merge von PR #2.
 - Kein Deployment.
 - Keine Supabase-Migration.
 - Keine Neon-Schemaänderung.
