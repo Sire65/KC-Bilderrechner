@@ -19,6 +19,8 @@ Ziel: Alle verwendeten Zusatzdienste im Free-Rahmen halten und vor dem 10-tägig
 5. Read-only Management-/Metadatenzugriffe nur, wenn sie im Free-Rahmen liegen und selbst keinen kostenrelevanten Runtime-Verbrauch erzeugen.
 6. Wenn ein Anbieter keinen sicheren Usage-Zugriff bereitstellt, bleibt der letzte bekannte Wert erhalten und wird als `stale` markiert. Niemals schätzen.
 7. Jede automatische GitHub-Aktualisierung erfolgt ausschließlich auf `monitor-free-usage-data`, niemals auf `main`, mit Commit-Nachricht `[skip netlify]`.
+8. Der vorbereitete Browser-Live-Adapter bleibt bis zur ausdrücklichen Freigabe dormant und wird weder vom HTML noch vom Core automatisch geladen.
+9. Das System- & Testcenter besitzt kein Hintergrund-Polling; Netlify ist bei Tests nur Fallback bzw. ausdrücklich manuell auswählbar.
 
 ## Datenziel
 
@@ -30,7 +32,16 @@ auf Branch:
 
 `monitor-free-usage-data`
 
-Der Manager selbst bleibt lokal-first. Er darf die Provider nicht im Hintergrund pollen. Der Snapshot kann später kontrolliert importiert bzw. über einen ausdrücklich freigegebenen read-only Weg übernommen werden.
+Der Manager selbst bleibt lokal-first. Er darf die Provider nicht im Hintergrund pollen. Der Snapshot kann später kontrolliert importiert bzw. über den bereits vorbereiteten, aber derzeit **nicht aktivierten** read-only Adapter übernommen werden.
+
+Der Adapter ist zusätzlich gehärtet:
+
+- nur `https://raw.githubusercontent.com` ist als Quelle erlaubt,
+- nur ein read-only GET-Pfad,
+- keine Browser-Credentials,
+- maximale Snapshot-Größe 256 KiB,
+- `null`, leer oder negative Werte werden nicht als Verbrauch übernommen,
+- stale-Status und Dublettenschutz werden berücksichtigt.
 
 ## Zu prüfende Anbieter
 
@@ -49,6 +60,7 @@ Der Manager selbst bleibt lokal-first. Er darf die Provider nicht im Hintergrund
 - Ein unbekannter/staler kritischer Wert verhindert eine uneingeschränkte LIVE-SAFE-Freigabe.
 - Ein bereits gesperrter Anbieter ist ROT, auch wenn die veröffentlichte Seite noch erreichbar ist.
 - Vor Marktstart wird ein kompletter Failover-/Offline-Test durchgeführt, ohne die Free-Limits unnötig zu belasten.
+- Während des Marktbetriebs keine regelmäßigen Super-GAU-Testserien; Testcenter nur bei begründetem Anlass.
 
 ## Vorbereiteter Automationsauftrag
 
@@ -56,4 +68,4 @@ Der Manager selbst bleibt lokal-first. Er darf die Provider nicht im Hintergrund
 
 ## Aktivierung später
 
-Die ChatGPT-Aufgabe wird erst aktiviert, wenn bewusst entschieden wurde, welcher vorhandene Task pausiert oder ersetzt wird. Bis dahin entstehen durch diese Vorbereitung keine automatischen Abfragen.
+Die ChatGPT-Aufgabe und der Browser-Live-Adapter werden erst aktiviert, wenn bewusst entschieden wurde, welcher vorhandene Task pausiert oder ersetzt wird und der read-only Snapshot-Weg freigegeben ist. Bis dahin entstehen durch diese Vorbereitung keine automatischen Provider-Abfragen.
