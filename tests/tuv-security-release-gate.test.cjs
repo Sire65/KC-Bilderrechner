@@ -26,8 +26,8 @@ const warnings = [];
 if (/\bDEV_ADMIN_ACCESS\s*=\s*true\b/.test(app)) {
   blockers.push('DEV_ADMIN_ACCESS ist aktiv. Ein Release darf keinen Entwickler-Bypass enthalten.');
 }
-if (/id=["']developerAdminLogin["']/.test(index)) {
-  blockers.push('Der sichtbare Candidate-Entwicklerzugang ist noch im POS-Dialog vorhanden.');
+if (/id=["']developerAdminLogin["']/.test(index) || /function\s+developerAdminLogin\s*\(/.test(app)) {
+  blockers.push('Der Candidate-Entwicklerzugang ist im POS noch vorhanden.');
 }
 if (/\beval\s*\(/.test(app) || /new\s+Function\s*\(/.test(app)) {
   blockers.push('Dynamische Codeausführung (eval/new Function) im POS gefunden.');
@@ -35,7 +35,7 @@ if (/\beval\s*\(/.test(app) || /new\s+Function\s*\(/.test(app)) {
 
 const discountHandler = around(app, 'el("applyDiscountBtn").onclick', 4500);
 if (discountHandler && !/requirePermission\(["']discount\.apply["']/.test(discountHandler)) {
-  blockers.push('Rabatt bis 100 % ist im Handler nicht an SecurityCore permission discount.apply gebunden.');
+  blockers.push('Rabatt ist im Handler nicht an SecurityCore permission discount.apply gebunden.');
 }
 const withdrawalHandler = around(app, 'el("saveWithdrawal").onclick', 7000);
 if (withdrawalHandler && !/requirePermission\(["']cash\.withdraw["']/.test(withdrawalHandler)) {
@@ -45,19 +45,29 @@ const closingHandler = around(app, 'function createClosing()', 3000);
 if (closingHandler && !/requirePermission\(["']closing\.execute["']/.test(closingHandler)) {
   blockers.push('Tagesabschluss ist im Erzeugungsweg nicht an closing.execute gebunden.');
 }
-const permissionHelper = around(app, 'function requirePermission', 1600);
-const stepUpDeclared = /requiresStepUp/.test(securityCore);
-const stepUpEnforcedInHelper = /requiresStepUp/.test(permissionHelper);
+const permissionHelper = around(app, 'function requirePermission', 2200);
 const stepUpEnforcedInCore = /STEP_UP_REQUIRED/.test(securityCore) && /stepUpSatisfied/.test(securityCore);
-if (permissionHelper && stepUpDeclared && !stepUpEnforcedInHelper && !stepUpEnforcedInCore) {
-  blockers.push('SecurityCore markiert Step-Up-Pflichten, aber weder Core noch requirePermission erzwingen sie.');
+const financialStepUpDefault = /stepUp\s*:\s*Array\.from\(new Set\(policy\.stepUp\|\|\[[^\]]*["']discount\.apply["'][^\]]*["']cash\.withdraw["'][^\]]*["']closing\.execute["']/s.test(securityCore);
+if (!stepUpEnforcedInCore || !financialStepUpDefault) {
+  blockers.push('SecurityCore erzwingt Step-Up nicht vollständig für Rabatt, Entnahme und Tagesabschluss.');
 }
 if (!/SESSION_EXPIRED/.test(securityCore) || !/sessionMaxAgeMs/.test(securityCore)) {
   warnings.push('Admin-/SecurityCore-Sitzungen besitzen keinen eindeutig nachweisbaren maximalen Session-Zeitraum.');
 }
+if (!/STEP_UP_REQUIRED/.test(permissionHelper) || !/PIN-\/QR-Freigabe/.test(permissionHelper)) {
+  warnings.push('POS-Berechtigungshelper erklärt eine erforderliche Step-Up-Freigabe dem Bediener nicht eindeutig.');
+}
 
-if (/function applyCashPayload\(/.test(app) && /function payloadChecksum\(/.test(app) && !/(HMAC|subtle\.verify|subtle\.sign)/.test(around(app, 'function applyCashPayload', 10000))) {
-  blockers.push('Bargeld-QR (KCASH1) nutzt nur eine nicht-authentische Prüfsumme. Ein Angreifer könnte einen formal gültigen QR selbst erzeugen.');
+const cashDecode = around(app, 'async function decodeCashPayload', 5000);
+const cashCreate = around(app, 'async function kcCreateSharedCash', 6500);
+const cashAuthRuntime = /cash-transfer-auth-core\/cash-transfer-auth-core\.js/.test(runtimeFlags);
+const cashSecretProtected = /CASH_TRANSFER_SECRET_KEY\s*=\s*["']kc_cash_transfer_secret_v2["']/.test(app) && /KCStorageVault/.test(cashDecode) && /protectedKey\(CASH_TRANSFER_SECRET_KEY\)/.test(cashDecode);
+const cashVerify = /KCCashTransferAuth/.test(cashDecode) && /\.verify\(/.test(cashDecode) && /registerId:state\.master\.registerId/.test(cashDecode) && /effectiveDate:localBusinessDate\(\)/.test(cashDecode);
+const cashCreateAuthenticated = /\.sign\(/.test(cashCreate) && /\.encode\(/.test(cashCreate) && /expiresAt/.test(cashCreate);
+const legacyCashBlocked = /KCASH1:[^\n]{0,220}(gesperrt|Altformat)/i.test(cashDecode);
+const scannerCash2 = /code\.startsWith\(["']KCASH2:["']\)/.test(app) && /await\s+applyCashPayload\(code/.test(app);
+if (!(cashAuthRuntime && cashSecretProtected && cashVerify && cashCreateAuthenticated && legacyCashBlocked && scannerCash2)) {
+  blockers.push('KCASH2-Herkunftsauthentifizierung ist nicht vollständig fail-closed in Erzeugung, Import und Scannerpfad integriert.');
 }
 if (/KCB-CHECK-1/.test(app) && !/(HMAC|subtle\.verify|signature)/i.test(around(app, 'function validatePosExchange', 7000))) {
   warnings.push('KCB-Konfigurations-/Austauschpakete nutzen eine Prüfsumme statt kryptografischer Herkunftsprüfung. Signatur/HMAC für vertrauenswürdige Manager-Pakete vorsehen.');
