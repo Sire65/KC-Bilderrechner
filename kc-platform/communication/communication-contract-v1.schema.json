@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kc.local/schemas/communication-contract-v1.schema.json",
+  "title": "KC Communication Auftrag v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "sourceApp", "requestId", "channel", "recipient", "message"],
+  "properties": {
+    "version": {"const": "1.0"},
+    "sourceApp": {"type": "string", "minLength": 2, "maxLength": 64},
+    "requestId": {"type": "string", "minLength": 8, "maxLength": 128},
+    "channel": {"enum": ["push", "email", "sms", "whatsapp", "auto"]},
+    "priority": {"enum": ["low", "normal", "high", "critical"], "default": "normal"},
+    "recipient": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "personId": {"type": "string"},
+        "groupId": {"type": "string"},
+        "address": {"type": "string"}
+      },
+      "minProperties": 1
+    },
+    "message": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "templateId": {"type": "string"},
+        "subject": {"type": "string"},
+        "text": {"type": "string"},
+        "variables": {"type": "object"}
+      },
+      "anyOf": [
+        {"required": ["templateId"]},
+        {"required": ["text"]}
+      ]
+    },
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {"enum": ["now", "scheduled"]},
+        "sendAt": {"type": "string", "format": "date-time"},
+        "respectQuietHours": {"type": "boolean", "default": true}
+      }
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requestReadReceipt": {"type": "boolean", "default": false},
+        "fallbackChannel": {"enum": ["push", "email", "sms", "whatsapp", "none"], "default": "none"},
+        "allowRetry": {"type": "boolean", "default": true}
+      }
+    },
+    "context": {"type": "object"}
+  }
+}
