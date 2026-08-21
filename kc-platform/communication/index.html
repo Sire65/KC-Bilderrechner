@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>KC Communication 1.0</title>
+  <link rel="stylesheet" href="./kc-communication.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">KC Plattform</div>
+        <h1>KC Communication</h1>
+      </div>
+      <div class="status-pill ok">● System bereit</div>
+    </header>
+
+    <nav class="tabs" aria-label="Kommunikationsbereiche">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="push">Push</button>
+      <button class="tab" data-tab="email">E-Mail</button>
+      <button class="tab" data-tab="sms">SMS</button>
+      <button class="tab" data-tab="whatsapp">WhatsApp</button>
+      <button class="tab" data-tab="templates">Vorlagen</button>
+      <button class="tab" data-tab="programs">Programme</button>
+      <button class="tab" data-tab="history">Historie</button>
+      <button class="tab" data-tab="testcenter">Testcenter</button>
+    </nav>
+
+    <main id="content"></main>
+  </div>
+  <script src="./kc-communication.js"></script>
+</body>
+</html>
