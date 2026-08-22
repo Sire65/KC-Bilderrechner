@@ -16,6 +16,11 @@
       <div class="status-pill ok">● System bereit</div>
     </header>
 
+    <div class="message-row">
+      <div id="notificationBar" class="notification-bar info" role="status">KC Communication bereit.</div>
+      <button id="messageHistoryBtn" class="btn" type="button" title="Vorige Meldung; gedrückt halten für Historie">Meldungen</button>
+    </div>
+
     <nav class="tabs" aria-label="Kommunikationsbereiche">
       <button class="tab active" data-tab="dashboard">Dashboard</button>
       <button class="tab" data-tab="push">Push</button>
@@ -30,6 +35,15 @@
 
     <main id="content"></main>
   </div>
+
+  <dialog id="messageHistoryDialog" class="message-history-dialog">
+    <div class="section-title"><h2>Meldungshistorie</h2><button class="btn" onclick="this.closest('dialog').close()">Schließen</button></div>
+    <ul id="messageHistoryList" class="message-history-list"></ul>
+  </dialog>
+
+  <script src="../../cores/message-core/message-core.js"></script>
+  <script src="./message-catalog-v1.js"></script>
+  <script>window.KCMessageCore?.init();</script>
   <script src="./kc-communication.js"></script>
 </body>
 </html>
