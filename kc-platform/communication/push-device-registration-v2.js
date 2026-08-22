@@ -12,11 +12,12 @@
   };
   function b64ToUint8(base64){const pad='='.repeat((4-base64.length%4)%4),s=(base64+pad).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(s),out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out}
   async function api(body){
-    const token=await window.KCCommunicationAuth?.getAccessToken?.();
+    const auth=window.KCCommunicationAuth;
+    const token=await auth?.getAccessToken?.();
     if(!token)throw new Error('Bitte zuerst bei KC Communication anmelden.');
     setTraffic(true);
     try{
-      const r=await fetch(DEVICES_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify(body)});
+      const r=await fetch(DEVICES_URL,{method:'POST',headers:{'Content-Type':'application/json','apikey':auth.API_KEY,'Authorization':`Bearer ${token}`},body:JSON.stringify(body)});
       const j=await r.json().catch(()=>({}));
       if(!r.ok||j.ok===false)throw new Error(j.error||j.errorCode||`HTTP ${r.status}`);
       return j;
