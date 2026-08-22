@@ -1,0 +1,61 @@
+{
+  "version": "1.0.0-dev",
+  "sourceInventory": {
+    "repository": "Sire65/Dienstplan",
+    "supabaseProject": "iddudrxuihdodnvejxcp",
+    "capturedAt": "2026-08-22"
+  },
+  "channels": {
+    "push": {
+      "status": "active-reference",
+      "provider": "web-push",
+      "runtime": "Supabase Edge Function",
+      "sourceFunction": "kc-dp-push",
+      "secretRefs": [
+        "KC_DP_VAPID_PUBLIC_KEY",
+        "KC_DP_VAPID_PRIVATE_KEY",
+        "KC_DP_VAPID_SUBJECT"
+      ],
+      "scheduleReference": {
+        "enabled": true,
+        "localTime": "20:00",
+        "timezone": "Europe/Berlin",
+        "recipientScope": "scheduled"
+      },
+      "notes": "Nur Referenzprofil. DP2 ist noch nicht an KC Communication angebunden. Keine Secret-Werte werden in GitHub gespeichert."
+    },
+    "email": {
+      "status": "prepared-reference",
+      "providers": [
+        {
+          "id": "resend",
+          "direction": "inbound",
+          "secretRefs": [
+            "KC_DP_RESEND_INBOUND_SECRET",
+            "RESEND_WEBHOOK_SECRET",
+            "KC_DP_RESEND_API_KEY",
+            "RESEND_API_KEY"
+          ],
+          "targets": ["dp2@joraejaepe.resend.app", "dp2@kc-werne.de"]
+        },
+        {
+          "id": "brevo",
+          "direction": "inbound",
+          "secretRefs": ["KC_DP_BREVO_API_KEY"],
+          "targets": ["dp2@kc-werne.de"]
+        }
+      ],
+      "mailRetentionDaysDefault": 30,
+      "attachmentProtection": "AES-GCM based encrypted quarantine via DP2 mail crypto helper",
+      "notes": "Mail-Code ist im DP2-Repository vorhanden, wurde im aktuellen Supabase-Edge-Function-Inventar aber nicht als aktiv deployt erkannt."
+    },
+    "sms": {
+      "status": "not-configured",
+      "providers": []
+    },
+    "whatsapp": {
+      "status": "not-configured",
+      "providers": []
+    }
+  }
+}
