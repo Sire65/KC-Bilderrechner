@@ -22,6 +22,7 @@ Ein zentraler Kommunikationsdienst für alle KC-Fachprogramme. Fachprogramme sto
 - `kc-communication-provider-health` v2: reale Secret-/Readiness-Prüfung ohne Geheimnisse auszugeben.
 - `kc-communication-health`: zentraler Systemstatus.
 - `kc-communication-dry-run`: Payload- und Dry-Run-Prüfung.
+- `kc-communication-push-devices` v2: eigenständige, JWT-geschützte KC-Communication-Geräteregistrierung und Testversand an das eigene Gerät.
 
 ## Schutzmechanismen
 - Provider-Secrets ausschließlich serverseitig.
@@ -39,11 +40,24 @@ Ein zentraler Kommunikationsdienst für alle KC-Fachprogramme. Fachprogramme sto
 - Delivery-Event-Historie.
 - Abgelaufene Web-Push-Subscriptions werden bei HTTP 404/410 deaktiviert.
 
+## Eigenständige Anmeldung und Push-Geräte
+KC Communication verwendet eine eigene Supabase-Anmeldung im Communication-Frontend. Die Geräteverwaltung ist nicht von KC DP2 abhängig.
+
+- Eigene Tabelle `kc_communication_push_devices`.
+- Geräte werden ausschließlich dem aktuell authentifizierten KC-Communication-Benutzer zugeordnet.
+- Der Browser erzeugt die Subscription erst nach einer ausdrücklichen Benutzeraktion.
+- Bei manueller Neuregistrierung wird eine vorhandene Browser-Subscription bewusst verworfen und frisch erzeugt.
+- Die vollständige Subscription bleibt serverseitig; in der UI erscheint nur ein gekürzter Endpoint-Hinweis.
+- Deaktivieren und Löschen funktionieren nur für eigene Geräte.
+- `Test an dieses Gerät` sendet ausschließlich an ein eigenes aktives Gerät.
+- Der frühere temporäre One-Shot-Test ist geschlossen und wieder JWT-geschützt.
+- Bestehende DP2-Subscriptions werden nicht übernommen und nicht verändert.
+
 ## Providerstatus
 ### Push
 - Web Push / VAPID: Outbound-Adapter implementiert.
-- Bestehende DP2-VAPID-Secrets können serverseitig weiterverwendet werden.
-- Test kann gezielt auf einzelne Person-/Subscription-Ziele begrenzt werden.
+- Bestehende DP2-VAPID-Secrets können serverseitig während der Migration als Fallback weiterverwendet werden; KC-Communication-eigene Secret-Namen haben Vorrang.
+- Test kann gezielt auf ein eigenes registriertes Communication-Gerät begrenzt werden.
 
 ### E-Mail
 - Resend: Outbound-Adapter implementiert; API-Key + Absenderadresse erforderlich.
@@ -65,16 +79,14 @@ Weitere zulässige Zustände: `scheduled`, `partially_sent`, `failed`, `cancelle
 ## Erste echte Testfreigabe
 Die erste echte Nachricht wird ausschließlich als isolierter Systemtest gesendet; kein Fachprogramm wird dabei angebunden.
 
-1. Provider-Health prüfen.
-2. Genau einen Testempfänger festlegen.
-3. Testauftrag mit `testOnly=true`, eindeutiger Idempotency-Key und Korrelations-ID anlegen.
-4. Inhalt eindeutig mit `KC Communication – TEST` kennzeichnen.
-5. Nur den benötigten Provider/Adapter verwenden.
-6. Dispatcher für diesen Testauftrag ausführen; globaler Killswitch bleibt für normalen Versand geschlossen.
-7. Providerantwort, Requeststatus und Delivery-Events prüfen.
-8. Sicherstellen, dass kein zweiter Versand durch Wiederholung desselben Idempotency-Key möglich ist.
-9. Fehler-/Retry-Verhalten kontrollieren.
-10. Erst nach erfolgreichem Push-Test denselben Ablauf für E-Mail durchführen.
+1. Bei KC Communication anmelden.
+2. Ein Gerät direkt in der Push-Registerkarte registrieren.
+3. Prüfen, dass genau dieses Gerät in `kc_communication_push_devices` aktiv erscheint.
+4. `Test an dieses Gerät` verwenden.
+5. Inhalt eindeutig mit `KC Communication – TEST` kennzeichnen.
+6. Providerantwort und Gerätestatus prüfen.
+7. Bei 404/410 Gerät automatisch deaktivieren.
+8. Erst nach erfolgreichem Push-Test denselben Ablauf für E-Mail durchführen.
 
 ## Regression
 Ein transaktionaler Datenbanktest der erweiterten Statusmaschine (`queued`, `retry_scheduled`, `dead_lettered`) wurde erfolgreich durchgeführt und danach vollständig zurückgerollt. Dadurch entstand kein Versand und kein persistenter Testauftrag.
