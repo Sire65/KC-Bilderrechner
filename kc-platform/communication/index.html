@@ -13,7 +13,21 @@
         <div class="eyebrow">KC Plattform</div>
         <h1>KC Communication</h1>
       </div>
-      <div class="status-pill ok">● System bereit</div>
+      <div class="topbar-tools" aria-label="Programmstatus und Aktionen">
+        <button id="settingsBtn" class="icon-btn" type="button" title="Programmeinstellungen" aria-label="Programmeinstellungen">⚙</button>
+        <button id="exitBtn" class="icon-btn exit" type="button" title="KC Communication verlassen" aria-label="KC Communication verlassen">🚪</button>
+        <span class="tool-separator" aria-hidden="true"></span>
+        <button class="connection-led-group" type="button" data-connection="indexeddb" aria-label="IndexedDB Status öffnen" title="IndexedDB Status">
+          <span class="connection-label">IndexedDB</span>
+          <span id="indexedDbStatusLed" class="led green" aria-label="Verbindung bereit"></span>
+          <span id="indexedDbTrafficLed" class="led yellow dim" aria-label="Kein Datenverkehr"></span>
+        </button>
+        <button class="connection-led-group" type="button" data-connection="supabase" aria-label="Supabase Status öffnen" title="Supabase Status">
+          <span class="connection-label">Supabase</span>
+          <span id="supabaseStatusLed" class="led green" aria-label="Verbindung bereit"></span>
+          <span id="supabaseTrafficLed" class="led yellow dim" aria-label="Kein Datenverkehr"></span>
+        </button>
+      </div>
     </header>
 
     <div class="message-row">
@@ -39,6 +53,30 @@
   <dialog id="messageHistoryDialog" class="message-history-dialog">
     <div class="section-title"><h2>Meldungshistorie</h2><button class="btn" onclick="this.closest('dialog').close()">Schließen</button></div>
     <ul id="messageHistoryList" class="message-history-list"></ul>
+  </dialog>
+
+  <dialog id="settingsDialog" class="kc-dialog">
+    <div class="section-title"><div><h2>Programmeinstellungen</h2><div class="muted">KC Communication</div></div><button class="btn" type="button" data-close-dialog>Schließen</button></div>
+    <div class="form-grid">
+      <div class="field"><label>Ruhezeit von</label><input value="22:00" type="time"></div>
+      <div class="field"><label>Ruhezeit bis</label><input value="07:00" type="time"></div>
+      <div class="field"><label>Protokoll-Warnschwelle Requests</label><input value="5000" type="number"></div>
+      <div class="field"><label>Protokoll-Hartgrenze Requests</label><input value="10000" type="number"></div>
+      <div class="field full"><label><input type="checkbox" checked> Vor Löschung alter Protokolle immer Sicherheitsabfrage anzeigen</label></div>
+    </div>
+    <div class="dialog-actions"><button class="btn" type="button" data-close-dialog>Abbrechen</button><button class="btn primary" id="saveSettingsBtn" type="button">Speichern</button></div>
+  </dialog>
+
+  <dialog id="connectionDialog" class="kc-dialog">
+    <div class="section-title"><div><h2 id="connectionDialogTitle">Verbindungsstatus</h2><div id="connectionDialogSubtitle" class="muted"></div></div><button class="btn" type="button" data-close-dialog>Schließen</button></div>
+    <div id="connectionDialogBody"></div>
+    <div class="dialog-actions"><button class="btn" type="button" data-close-dialog>Schließen</button><button class="btn primary" id="connectionTestBtn" type="button">Verbindung testen</button></div>
+  </dialog>
+
+  <dialog id="exitDialog" class="kc-dialog small-dialog">
+    <div class="section-title"><h2>KC Communication verlassen?</h2></div>
+    <p>Offene Eingaben können verloren gehen. Möchten Sie das Programm wirklich verlassen?</p>
+    <div class="dialog-actions"><button class="btn" type="button" data-close-dialog>Nein, hier bleiben</button><button class="btn danger solid" id="confirmExitBtn" type="button">Ja, verlassen</button></div>
   </dialog>
 
   <script src="../../cores/message-core/message-core.js"></script>
