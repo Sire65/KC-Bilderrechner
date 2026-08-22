@@ -1,0 +1,69 @@
+(()=>{
+  'use strict';
+  const PROJECT='iddudrxuihdodnvejxcp';
+  const BASE=`https://${PROJECT}.supabase.co`;
+  const API_KEY='sb_publishable_DWLycZijZEBvakXVncI5IQ_38LZCQxW';
+  const STORE='kcCommunicationAuthV1';
+  const msg=(t,type='info')=>window.KCMessageCore?.add(t,type);
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let session=null;
+
+  function load(){
+    try{session=JSON.parse(localStorage.getItem(STORE)||'null')}catch{session=null}
+    if(session?.expires_at&&Date.now()/1000>Number(session.expires_at)-30) session=null;
+    return session;
+  }
+  function save(s){session=s||null;if(session)localStorage.setItem(STORE,JSON.stringify(session));else localStorage.removeItem(STORE);renderStatus();}
+  function accessToken(){return load()?.access_token||null}
+  function user(){return load()?.user||null}
+  async function request(path,{method='POST',token,body}={}){
+    const headers={'apikey':API_KEY,'Content-Type':'application/json'};
+    if(token)headers.Authorization=`Bearer ${token}`;
+    const r=await fetch(`${BASE}${path}`,{method,headers,body:body?JSON.stringify(body):undefined});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(j.error_description||j.msg||j.error||`HTTP ${r.status}`);
+    return j;
+  }
+  async function signIn(email,password){
+    const j=await request('/auth/v1/token?grant_type=password',{body:{email,password}});
+    save(j);msg('KC Communication Anmeldung erfolgreich.','success');return j;
+  }
+  async function refresh(){
+    const s=load();if(!s?.refresh_token)return null;
+    const j=await request('/auth/v1/token?grant_type=refresh_token',{body:{refresh_token:s.refresh_token}});
+    save(j);return j;
+  }
+  async function getAccessToken(){
+    let s=load();
+    if(s?.access_token)return s.access_token;
+    try{s=await refresh()}catch{save(null)}
+    return s?.access_token||null;
+  }
+  async function signOut(){
+    const token=accessToken();
+    if(token){try{await request('/auth/v1/logout',{token,body:{}})}catch{}}
+    save(null);msg('KC Communication abgemeldet.','info');
+  }
+  function ensureDialog(){
+    if(document.getElementById('kcCommunicationAuthDialog'))return;
+    const dlg=document.createElement('dialog');dlg.id='kcCommunicationAuthDialog';dlg.className='kc-dialog small-dialog';
+    document.body.appendChild(dlg);
+  }
+  function openDialog(){
+    ensureDialog();const dlg=document.getElementById('kcCommunicationAuthDialog');const u=user();
+    dlg.innerHTML=u?`<div class="section-title"><div><h2>KC Communication Anmeldung</h2><div class="muted">Zentrale Benutzeranmeldung</div></div><button class="btn" data-auth-close>Schließen</button></div><p>Angemeldet als <strong>${esc(u.email||'KC Benutzer')}</strong>.</p><div class="dialog-actions"><button class="btn" data-auth-close>Schließen</button><button class="btn danger solid" id="kcCommunicationLogout">Abmelden</button></div>`:`<div class="section-title"><div><h2>KC Communication Anmeldung</h2><div class="muted">Unabhängig von DP2</div></div><button class="btn" data-auth-close>Schließen</button></div><form id="kcCommunicationLoginForm"><div class="form-grid"><div class="field full"><label>E-Mail-Adresse <span class="req">*</span></label><input id="kccAuthEmail" type="email" autocomplete="username" required></div><div class="field full"><label>Passwort <span class="req">*</span></label><input id="kccAuthPassword" type="password" autocomplete="current-password" required></div></div><div id="kccAuthError" class="muted" style="margin-top:10px"></div><div class="dialog-actions"><button class="btn" type="button" data-auth-close>Abbrechen</button><button class="btn primary" type="submit">Anmelden</button></div></form>`;
+    dlg.querySelectorAll('[data-auth-close]').forEach(b=>b.addEventListener('click',()=>dlg.close()));
+    dlg.querySelector('#kcCommunicationLogout')?.addEventListener('click',async()=>{await signOut();dlg.close()});
+    dlg.querySelector('#kcCommunicationLoginForm')?.addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{await signIn(document.getElementById('kccAuthEmail').value.trim(),document.getElementById('kccAuthPassword').value);dlg.close()}catch(err){document.getElementById('kccAuthError').textContent=err.message;b.disabled=false}});
+    dlg.showModal();
+  }
+  function renderStatus(){
+    let b=document.getElementById('kcCommunicationAuthBtn');
+    if(!b){const tools=document.querySelector('.topbar-tools');if(!tools)return;b=document.createElement('button');b.id='kcCommunicationAuthBtn';b.className='btn';b.type='button';const sep=tools.querySelector('.tool-separator');tools.insertBefore(b,sep||tools.firstChild);b.addEventListener('click',openDialog)}
+    const u=user();b.textContent=u?`👤 ${u.email||'angemeldet'}`:'👤 Anmelden';b.title=u?'KC Communication Benutzerkonto':'Bei KC Communication anmelden';
+    document.dispatchEvent(new CustomEvent('kc-communication-auth-changed',{detail:{authenticated:!!u,user:u}}));
+  }
+  load();
+  window.KCCommunicationAuth={PROJECT,BASE,API_KEY,accessToken,getAccessToken,user,signIn,signOut,refresh,openDialog,renderStatus};
+  document.addEventListener('DOMContentLoaded',renderStatus);renderStatus();
+})();
