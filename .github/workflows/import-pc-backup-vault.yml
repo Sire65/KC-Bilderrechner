@@ -1,0 +1,47 @@
+name: Import PC Backup Vault source
+
+on:
+  push:
+    paths:
+      - 'PC-Backup-Vault/_upload/part12.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reassemble and extract source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pcbv
+          cat PC-Backup-Vault/_upload/part*.txt | base64 -d > /tmp/pcbv/source.zip
+          rm -rf PC-Backup-Vault/source
+          mkdir -p PC-Backup-Vault/source
+          unzip -q /tmp/pcbv/source.zip -d PC-Backup-Vault/source
+          cp /tmp/pcbv/source.zip PC-Backup-Vault/PC_Backup_Vault_public_source.zip
+          rm -rf PC-Backup-Vault/_upload
+          cat > PC-Backup-Vault/README.md <<'EOF'
+          # PC Backup Vault
+
+          Öffentliche Quellcode-Ablage des PC Backup Vault.
+
+          Der veröffentlichte Stand wurde aus dem bereitgestellten RAR-Paket extrahiert. Die lokale `.venv` und `__pycache__` wurden bewusst nicht veröffentlicht. Vor der Veröffentlichung wurde der eigentliche Projektcode auf fest eingebettete Tokens, API-Keys, Passwörter, Datenbank-URLs und private Schlüssel geprüft; dabei wurden keine solchen fest eingebetteten Geheimnisse gefunden.
+
+          Der browsbare Quellcode liegt unter `source/`. Zusätzlich steht das bereinigte Quellpaket als `PC_Backup_Vault_public_source.zip` bereit.
+          EOF
+      - name: Commit imported source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add PC-Backup-Vault
+          git commit -m 'feat: publish PC Backup Vault source' || exit 0
+          git push
