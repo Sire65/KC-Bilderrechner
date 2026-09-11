@@ -1,0 +1,23 @@
+{
+  "repository": "Sire65/KC-Bilderrechner",
+  "target_path": "archive/neue-bildserie-2026-09-11",
+  "created": "2026-09-11",
+  "purpose": "Separate archival copy of the latest KC Christmas-market product/studio image series; do not overwrite pos/assets.",
+  "images": [
+    {"file":"images/01_amaretto_studio.png","subject":"Amaretto bottle","core_series":true},
+    {"file":"images/02_pott_rum_hell.png","subject":"POTT rum bottle","core_series":true},
+    {"file":"images/03_apfelpunsch_apfel_oben_links.png","subject":"Apple punch / apple upper-left","core_series":true},
+    {"file":"images/04_gewuerzwein_zimt_oben_links.png","subject":"Spiced wine / cinnamon upper-left","core_series":true},
+    {"file":"images/05_gluehwein_zimt_sternanis_oben_links.png","subject":"Mulled wine / cinnamon and star anise upper-left","core_series":true},
+    {"file":"images/06_dunkler_punsch_loeffel.png","subject":"Dark punch with spoon","core_series":false},
+    {"file":"images/07_minimalistisches_rotes_getraenk.png","subject":"Minimalist red drink","core_series":false},
+    {"file":"images/08_apfelpunsch_variante_warm.png","subject":"Warm apple punch variant","core_series":false},
+    {"file":"images/09_kinderpunsch_kirschen_oben_links.png","subject":"Kids punch / cherry drink with cherries upper-left","core_series":true}
+  ],
+  "rules": [
+    "Keep this archive separate from pos/assets",
+    "Do not overwrite existing production assets",
+    "Verify SHA256 checksums before commit",
+    "Preserve filenames exactly"
+  ]
+}
