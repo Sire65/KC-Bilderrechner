@@ -1,0 +1,17 @@
+AUFTRAG FÜR CLAUDE CODE / CODEX
+
+Repository: Sire65/KC-Bilderrechner
+Ziel: Die mitgelieferte Bildserie dauerhaft und separat in GitHub archivieren.
+
+1. Entpacke KC_Bildserie_2026-09-11_UPLOAD.zip.
+2. Lege im Repository archive/neue-bildserie-2026-09-11/ an bzw. nutze den bereits vorbereiteten Ordner.
+3. Kopiere den kompletten Inhalt des entpackten Pakets in diesen Zielordner.
+4. Verändere NICHT pos/assets und ersetze keine vorhandenen Bilder.
+5. Prüfe, dass images/ exakt 9 PNG-Dateien enthält.
+6. Prüfe die SHA256-Werte aus SHA256SUMS.txt.
+7. Führe git status und git diff --stat aus und kontrolliere, dass ausschließlich der neue Archivordner ergänzt wird.
+8. Commit-Nachricht: Archive KC studio image series 2026-09-11
+9. Push auf main, falls erlaubt. Falls main geschützt ist: Branch kc-image-archive-2026-09-11 erstellen, pushen und PR gegen main anlegen.
+10. Abschließend GitHub prüfen und die URL des Archivordners sowie die Liste der 9 hochgeladenen Dateien melden.
+
+WICHTIG: Auftrag gilt erst als abgeschlossen, wenn die PNG-Dateien wirklich im GitHub-Repository sichtbar sind, nicht nur lokal.
