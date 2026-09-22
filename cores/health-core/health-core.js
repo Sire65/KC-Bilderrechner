@@ -1,13 +1,21 @@
-/* KC HealthCore V1.0.0 - program-only monitoring, privacy-preserving, non-blocking */
+/* KC HealthCore V1.0.1 - program-only monitoring, privacy-preserving, non-blocking */
 (()=>{
   'use strict';
-  const VERSION='1.0.0', LOG_KEY='kc_health_log_v100', SETTINGS_KEY='kc_health_settings_v100', MAX_EVENTS=500;
+  const VERSION='1.0.1', LOG_KEY='kc_health_log_v100', SETTINGS_KEY='kc_health_settings_v100', MAX_EVENTS=500;
   const defaults={enabled:true,level:'normal',autoRushProtection:true,intervalMs:60000,idleBudgetMs:8,retentionDays:14};
+  const SENSITIVE_KEY=/pin|password|passphrase|secret|token|credential|authorization|api[_-]?key|private[_-]?key|service[_-]?role|recovery/i;
   let settings={...defaults}, probes={}, timer=null, lastInput=Date.now(), busy=false, started=false, lastCycle=null;
   const now=()=>new Date().toISOString();
   const safeParse=(v,f)=>{try{return JSON.parse(v)}catch{return f}};
   const loadEvents=()=>safeParse(localStorage.getItem(LOG_KEY)||'[]',[]).filter(x=>x&&x.time);
   function saveEvents(rows){try{localStorage.setItem(LOG_KEY,JSON.stringify(rows.slice(-MAX_EVENTS)))}catch{}}
+  function redactString(value){
+    return String(value??'')
+      .replace(/[\u0000-\u001f]/g,' ')
+      .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]{8,}={0,2}\b/gi,'Bearer [REDACTED]')
+      .replace(/\b(authorization|password|passphrase|secret|token|api[_-]?key|private[_-]?key|service[_-]?role|recovery(?:code|key)?)\s*[:=]\s*[^\s,;]+/gi,'$1=[REDACTED]')
+      .slice(0,800);
+  }
   function append(type,severity='info',details={}){
     const evt={id:crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`,time:now(),type,severity,details:sanitize(details)};
     const rows=loadEvents();rows.push(evt);saveEvents(rows);return evt;
@@ -15,10 +23,10 @@
   function sanitize(v,depth=0){
     if(depth>4)return '[gekürzt]';
     if(v==null||typeof v==='number'||typeof v==='boolean')return v;
-    if(typeof v==='string')return v.replace(/[\u0000-\u001f]/g,' ').slice(0,800);
+    if(typeof v==='string')return redactString(v);
     if(Array.isArray(v))return v.slice(0,30).map(x=>sanitize(x,depth+1));
-    if(typeof v==='object'){const o={};for(const [k,x] of Object.entries(v)){if(/name|operator|customer|account|receipt|bon|item|article|payment/i.test(k))continue;o[k]=sanitize(x,depth+1)}return o}
-    return String(v).slice(0,200);
+    if(typeof v==='object'){const o={};for(const [k,x] of Object.entries(v)){if(/name|operator|customer|account|receipt|bon|item|article|payment/i.test(k)||SENSITIVE_KEY.test(k))continue;o[k]=sanitize(x,depth+1)}return o}
+    return redactString(String(v).slice(0,200));
   }
   function loadSettings(){settings={...defaults,...safeParse(localStorage.getItem(SETTINGS_KEY)||'{}',{})};return {...settings}}
   function saveSettings(next){settings={...settings,...next};localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings));schedule();return {...settings}}
@@ -64,7 +72,7 @@
   function clear(){localStorage.removeItem(LOG_KEY);append('diagnostics-cleared','info',{})}
   function buildDiagnostic(appInfo={},manualReport=null){
     const cutoff=Date.now()-(Number(settings.retentionDays)||14)*86400000;
-    return {format:'KCB-DIAG-1',formatVersion:1,createdAt:now(),privacy:{programOnly:true,personalData:false,salesData:false,userTracking:false},app:sanitize(appInfo),health:status(),manualReport:sanitize(manualReport),events:loadEvents().filter(x=>Date.parse(x.time)>=cutoff)};
+    return {format:'KCB-DIAG-1',formatVersion:1,createdAt:now(),privacy:{programOnly:true,personalData:false,salesData:false,userTracking:false},app:sanitize(appInfo),health:sanitize(status()),manualReport:sanitize(manualReport),events:loadEvents().filter(x=>Date.parse(x.time)>=cutoff).map(x=>sanitize(x))};
   }
   const b64=bytes=>btoa(String.fromCharCode(...bytes));
   async function encryptDiagnostic(payload,password){
@@ -76,5 +84,5 @@
     const cipher=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(payload))));
     return {format:'KCB-DIAG-ENC-1',formatVersion:1,createdAt:now(),cipher:'AES-256-GCM',kdf:{name:'PBKDF2',hash:'SHA-256',iterations:210000,salt:b64(salt)},iv:b64(iv),payload:b64(cipher)};
   }
-  window.KCHealthCore={VERSION,start,setBusy,activity,getSettings:()=>({...settings}),saveSettings,status,append,clear,buildDiagnostic,encryptDiagnostic,getEvents:loadEvents};
+  window.KCHealthCore={VERSION,start,setBusy,activity,getSettings:()=>({...settings}),saveSettings,status,append,clear,buildDiagnostic,encryptDiagnostic,getEvents:loadEvents,sanitize};
 })();

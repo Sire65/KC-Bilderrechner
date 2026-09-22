@@ -1,8 +1,8 @@
 (function(root){
   'use strict';
-  const VERSION='1.0.0';
+  const VERSION='1.0.1';
   const A='https://kc-failover-gateway.ha-joko.workers.dev';
-  const B_DEFAULT='https://kc-failover-gateway-b.netlify.app';
+  const B_DEFAULT='https://kc-failover-gateway.netlify.app';
   const originalFetch=root.fetch?.bind(root);
   if(!originalFetch)return;
   const state={active:'A',aFailures:0,bFailures:0,aOpenUntil:0,lastSwitch:null,lastAOk:null,lastBOk:null,lastError:null};

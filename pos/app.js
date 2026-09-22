@@ -1,5 +1,5 @@
 const VERSION="V0.31.3.6 Repair 11";
-const DEV_ADMIN_ACCESS=true; // CANDIDATE ONLY – vor Leading/Release zwingend entfernen
+const DEV_ADMIN_ACCESS=false; // AUDIT HARDENING – kein Entwickler-Bypass im Releasepfad
 const DEFAULTS = {workspaceButtons:null,clubName:"Köcheclub Werne",clubLogo:"",eventName:"Weihnachtsmarkt 2026",registerName:"Kasse 1",operatorName:"Hans",operators:["Hans","Peter","Marion","Gast"],operatorProfiles:[],requireOperatorConfirmation:false,nextBon:123,depositRule:"automatic",showProductInfo:true,highlightAllergens:true,notificationProfile:"standard",buttonSize:"standard",buttonMode:"image",showPrice:true,registerId:"KASSE-01",showStaff:true,showTip:true,showDeposit:true,showPrint:true,showMore:true,showChange:true,showCard:true,showAccount:true,showDiscount:true,showHappyHour:true,showRushMode:true,allowTraining:true,requireChangeFlow:false,rushMode:false,trainingMode:false,autoFavorites:true,groupColorMode:true,fiscalMode:"off",tseProvider:"",tseSerial:"",superAdminAccess:null,healthMonitor:{enabled:true,level:"normal",autoRushProtection:true},receipt:{header:true,head1:"Köcheclub Werne",head2:"Weihnachtsmarkt",vat:"summary",foot1:"Vielen Dank!",autoPrint:true}};
 DEFAULTS.categoryOrder=null;
 const OPTIONS={
@@ -712,7 +712,7 @@ el("discountSelectAllBtn").onclick=()=>{
 document.querySelectorAll("[data-discount-percent]").forEach(button=>button.onclick=()=>{discountDraftPercent=Number(button.dataset.discountPercent);el("discountCustomPercent").value=discountDraftPercent;renderDiscountDraft()});
 el("discountCustomPercent").oninput=()=>{discountDraftPercent=Number(String(el("discountCustomPercent").value).replace(",","."))||0;renderDiscountDraft()};
 document.querySelectorAll("[data-discount-reason]").forEach(button=>button.onclick=()=>{discountDraftReason=discountDraftReason===button.dataset.discountReason?"":button.dataset.discountReason;renderDiscountDraft()});
-el("applyDiscountBtn").onclick=()=>{const percent=Number(discountDraftPercent);if(!Number.isFinite(percent)||percent<=0||percent>100)return setSystemHint("Rabatt muss größer als 0 und höchstens 100 Prozent sein","warn");if(positionDiscountTargetKey){const item=state.cart.find(row=>row.key===positionDiscountTargetKey);if(!item)return setSystemHint("Die gewählte Position ist nicht mehr vorhanden","warn");item.positionDiscount={percent:+percent.toFixed(1),reason:safeText(discountDraftReason,80),note:safeText(el("discountReasonNote").value,160)};const name=item.name,value=positionDiscountAmount(item);positionDiscountTargetKey=null;el("discountDialog").close();renderCart();setSystemHint(`${percent.toLocaleString("de-DE")} % Positionsrabatt für ${name} · − ${money(value)}`,"ok");return}if(!discountDraftKeys.length)return setSystemHint("Mindestens einen Artikel für den Rabatt auswählen","warn");state.discount={percent:+percent.toFixed(1),reason:safeText(discountDraftReason,80),note:safeText(el("discountReasonNote").value,160),keys:[...discountDraftKeys]};recordDiscountAudit("apply");el("discountDialog").close();renderCart();setSystemHint(`${state.discount.percent.toLocaleString("de-DE")} % Rabatt · − ${money(globalDiscountAmount())}`,"ok")};
+el("applyDiscountBtn").onclick=()=>{if(!requirePermission("discount.apply"))return;const percent=Number(discountDraftPercent);if(!Number.isFinite(percent)||percent<=0||percent>100)return setSystemHint("Rabatt muss größer als 0 und höchstens 100 Prozent sein","warn");if(positionDiscountTargetKey){const item=state.cart.find(row=>row.key===positionDiscountTargetKey);if(!item)return setSystemHint("Die gewählte Position ist nicht mehr vorhanden","warn");item.positionDiscount={percent:+percent.toFixed(1),reason:safeText(discountDraftReason,80),note:safeText(el("discountReasonNote").value,160)};const name=item.name,value=positionDiscountAmount(item);positionDiscountTargetKey=null;el("discountDialog").close();renderCart();setSystemHint(`${percent.toLocaleString("de-DE")} % Positionsrabatt für ${name} · − ${money(value)}`,"ok");return}if(!discountDraftKeys.length)return setSystemHint("Mindestens einen Artikel für den Rabatt auswählen","warn");state.discount={percent:+percent.toFixed(1),reason:safeText(discountDraftReason,80),note:safeText(el("discountReasonNote").value,160),keys:[...discountDraftKeys]};recordDiscountAudit("apply");el("discountDialog").close();renderCart();setSystemHint(`${state.discount.percent.toLocaleString("de-DE")} % Rabatt · − ${money(globalDiscountAmount())}`,"ok")};
 el("clearDiscountBtn").onclick=()=>{if(positionDiscountTargetKey){const item=state.cart.find(row=>row.key===positionDiscountTargetKey);if(item)delete item.positionDiscount;positionDiscountTargetKey=null;el("discountDialog").close();renderCart();setSystemHint("Positionsrabatt entfernt","ok");return}const hadDiscount=globalDiscountAmount()>0;if(hadDiscount)recordDiscountAudit("remove");resetDiscount();el("discountDialog").close();renderCart();setSystemHint("Rabatt entfernt","ok")};
 el("exitDiscountModeBtn")?.addEventListener("click",()=>{const hadDiscount=discountAmount()>0;if(hadDiscount)recordDiscountAudit("remove");resetDiscount();renderCart();setSystemHint("Rabattmodus beendet")});
 
@@ -925,16 +925,6 @@ function openService(){
   el("serviceError").textContent="";
   dialog.showModal();
   setTimeout(()=>el("servicePin").focus(),50);
-}
-function developerAdminLogin(){
-  if(!DEV_ADMIN_ACCESS){
-    el("serviceError").textContent="Entwicklerzugang ist in dieser Version deaktiviert.";
-    return;
-  }
-  adminFailedAttempts=0;
-  beginAdminSession("candidate-developer","Entwicklerzugang",`DEV-${VERSION}`);
-  appendAdminAudit("developer-access","warning",{message:"Temporärer Candidate-Entwicklerzugang verwendet. Vor Leading/Release entfernen."});
-  setSystemHint("Temporärer Entwicklerzugang aktiv – nicht produktiv einsetzen","warn");
 }
 async function serviceLogin(e){
   e?.preventDefault();
@@ -1233,7 +1223,12 @@ function secureAuthOk(){return hasPermission("protected.open")||hasPermission("s
 
 function requirePermission(permission,action){
   const decision=window.KCSecurityCore?.decision(permission,securityContext())||{allowed:false,code:"SECURITY_CORE_UNAVAILABLE"};
-  if(!decision.allowed){appendAdminAudit(permission,"rejected",{message:decision.code});return false}
+  if(!decision.allowed){
+    appendAdminAudit(permission,"rejected",{message:decision.code});
+    const message=decision.code==="STEP_UP_REQUIRED"?"Für diese Aktion ist eine frische PIN-/QR-Freigabe erforderlich.":decision.code==="NO_SESSION"?"Für diese Aktion ist eine autorisierte Anmeldung erforderlich.":"Diese Aktion ist für die aktuelle Rolle nicht freigegeben.";
+    setSystemHint(message,"warn");
+    return false;
+  }
   return typeof action==="function"?action(decision):true;
 }
 function b64(bytes){return btoa(String.fromCharCode(...bytes))}
@@ -1918,7 +1913,26 @@ function requestCompletedReversal(no){
   const reason=prompt("Grund für die vollständige Stornierung:","Fehlbuchung");if(!reason)return;
   askConfirm("Gebuchten Bon stornieren",`Für Bon ${no} wird ein protokollierter Gegenbon über ${money(-Math.abs(Number(original.due??original.total??0)))} erzeugt.`,async()=>{try{const rec=await reverseCompletedTransaction(original,reason);el("bonPrintDialog").close();showMessage("Storno gebucht",money(rec.due),`Gegenbon ${rec.bon} wurde gespeichert.`)}catch(err){showMessage("Storno abgelehnt","!",err.message)}});
 }
-function decodeCashPayload(text){if(!text.startsWith("KCASH1:"))throw new Error("Ungültiger Bargeld-QR-Code");return JSON.parse(decodeURIComponent(escape(atob(text.slice(7)))))}
+const CASH_TRANSFER_SECRET_KEY="kc_cash_transfer_secret_v2";
+const CASH_TRANSFER_KEY_ID="markt-2026";
+async function cashTransferSecret(){
+  const vault=window.KCStorageVault;
+  if(!vault?.ready||typeof vault.protectedKey!=="function"||!vault.protectedKey(CASH_TRANSFER_SECRET_KEY))throw new Error("Sicherer Bargeldschlüssel-Speicher ist nicht verfügbar");
+  await vault.ready;
+  const secret=String(localStorage.getItem(CASH_TRANSFER_SECRET_KEY)||"");
+  if(secret.length<32)throw new Error("Bargeldschlüssel ist noch nicht sicher provisioniert");
+  return secret;
+}
+async function decodeCashPayload(text){
+  const raw=String(text||"").trim();
+  if(raw.startsWith("KCASH1:"))throw new Error("KCASH1-Altformat ist aus Sicherheitsgründen gesperrt – bitte einen KCASH2-Code verwenden");
+  const auth=window.KCCashTransferAuth;
+  if(!auth)throw new Error("KCASH2-Sicherheitsmodul ist nicht verfügbar");
+  const payload=auth.decode(raw);
+  const verification=await auth.verify(payload,{secret:await cashTransferSecret(),registerId:state.master.registerId,effectiveDate:localBusinessDate()});
+  if(!verification.ok)throw new Error(`KCASH2-Authentifizierung fehlgeschlagen (${verification.code})`);
+  return payload;
+}
 function localBusinessDate(date=new Date()){return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`}
 function isBusinessDate(value){if(!/^\d{4}-\d{2}-\d{2}$/.test(value||""))return false;const [y,m,d]=value.split("-").map(Number),date=new Date(y,m-1,d);return date.getFullYear()===y&&date.getMonth()===m-1&&date.getDate()===d}
 function displayBusinessDate(value){const [y,m,d]=String(value).split("-");return `${d}.${m}.${y}`}
@@ -1958,10 +1972,9 @@ function recordCashImportAttempt(entry){
   audit.push(entry);
   localStorage.setItem("kc_cash_import_audit",JSON.stringify(audit));
 }
-function applyCashPayload(text,source="unknown"){
-  const p=decodeCashPayload(text);
-  if(p?.format!=="KC_CASH_TRANSFER")throw new Error("Der Code ist keine Bargeldübergabe");
-  if(!p.checksum||checksumObject(p)!==p.checksum)throw new Error("Prüfsumme falsch – Code beschädigt oder verändert");
+async function applyCashPayload(text,source="unknown"){
+  const p=await decodeCashPayload(text);
+  if(p?.format!==window.KCCashTransferAuth?.FORMAT)throw new Error("Der Code ist keine authentifizierte KCASH2-Bargeldübergabe");
   if(!["opening","topup"].includes(p.type))throw new Error("Ungültige Vorgangsart für eine Bargeldübergabe");
   if(!p.transferId)throw new Error("Übergabe-ID fehlt – Code nicht übernehmen");
   if(!Number.isFinite(Number(p.total))||Number(p.total)<=0)throw new Error("Ungültiger Bargeldbetrag");
@@ -2032,7 +2045,7 @@ function applyCashPayload(text,source="unknown"){
   });
   return {...p,transferId:key};
 }
-el("applyCashDeposit").onclick=()=>{try{const p=applyCashPayload(el("cashDepositPayload").value.trim(),"manual-paste");el("cashDepositResult").textContent=`${p.type==="opening"?"Anfangsbestand":"Nachfüllung"} über ${money(p.total)} wurde für ${p.registerId} am ${displayBusinessDate(p.effectiveDate)} gespeichert.`}catch(err){el("cashDepositResult").textContent="Fehler: "+err.message}};
+el("applyCashDeposit").onclick=async()=>{try{const p=await applyCashPayload(el("cashDepositPayload").value.trim(),"manual-paste");el("cashDepositResult").textContent=`${p.type==="opening"?"Anfangsbestand":"Nachfüllung"} über ${money(p.total)} wurde für ${p.registerId} am ${displayBusinessDate(p.effectiveDate)} gespeichert.`}catch(err){el("cashDepositResult").textContent="Fehler: "+err.message}};
 
 function payloadChecksum(text){let h=2166136261;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16).padStart(8,"0")}
 function checksumObject(value){const copy=cloneData(value);delete copy.checksum;return payloadChecksum(JSON.stringify(copy))}
@@ -2097,6 +2110,7 @@ function openClosingDialog(){
   const s=closingSnapshot();el("closingCashIn").textContent=money(s.cashIn);el("closingCashSales").textContent=money(s.cashSales);el("closingCashTips").textContent=money(s.cashTips);el("closingCashOut").textContent=money(s.cashOut);el("closingExpected").textContent=money(s.expectedCash);el("closingPayload").value="";el("closingQrCanvas").classList.remove("ready");el("closingDialog").showModal();
 }
 function createClosing(){
+  if(!requirePermission("closing.execute"))return null;
   const s=closingSnapshot(),createdAt=new Date().toISOString();
   const payload={format:"KC_CASH_CLOSING",version:3,closingId:crypto.randomUUID(),registerId:state.master.registerId,registerName:state.master.registerName,operator:state.master.operatorName,createdAt,periodStart:s.startAt,periodEnd:createdAt,cashIn:s.cashIn,cashSales:s.cashSales,cashTips:s.cashTips,cashOut:s.cashOut,expectedCash:s.expectedCash,transactionCount:s.tx.length,firstTransactionId:s.tx[0]?.transactionId||null,lastTransactionId:s.tx[s.tx.length-1]?.transactionId||null,note:el("closingNote").value.trim()};
   payload.checksum=checksumObject(payload);const code=encodePayload("KCLOSE1:",payload);
@@ -2177,6 +2191,7 @@ function addComplaintToCurrentCart(amount){
   state.selectedCartKey=state.cart.at(-1)?.key||null;renderCart();notify("success",`Reklamation − ${money(amount)} wurde vom Zahlbetrag abgezogen`,"complaint-in-cart",6000)
 }
 el("saveWithdrawal").onclick=async()=>{
+  if(!requirePermission("cash.withdraw"))return;
   const saveButton=el("saveWithdrawal");
   if(saveButton.disabled)return;
   if(!withdrawalReason)return setSystemHint("Bitte einen Entnahmegrund auswählen","warn");
@@ -2446,7 +2461,6 @@ async function serviceQrLogin(e){
   if(!await trySuperAdminQr(code))registerAdminFailure("qr","Kein gültiger Superadmin-QR-Code.");
 }
 el("serviceQrLogin").onclick=serviceQrLogin;
-el("developerAdminLogin")?.addEventListener("click",developerAdminLogin);
 el("serviceQrCode").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();serviceQrLogin(e)}});
 let serviceScanBuffer="",serviceScanTimer=null;
 el("serviceDialog").addEventListener("keydown",e=>{
@@ -2805,7 +2819,7 @@ document.querySelectorAll('.more-grid button[data-action]').forEach(button=>butt
 });
 document.addEventListener("keydown",async e=>{if(["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName))return;clearTimeout(state.scanTimer);if(e.key==="Enter"){const code=state.scanBuffer.trim();state.scanBuffer="";if(code==="CMD-CHECKOUT")return checkoutSale("qr");
     if(code.startsWith("KCOPE1:")){const profile=operatorFromCode(code);if(profile)confirmOperator(profile,"qr");else showMessage("Bediener-QR unbekannt","!","Dieser Bediener ist nicht in der aktuellen Konfigurationspaket enthalten.");return}
-    if(code.startsWith("KCASH1:")){try{const p=applyCashPayload(code,"hid-scanner");showMessage("Bargeldeinzahlung",money(p.total),`${p.type==="opening"?"Anfangsbestand":"Nachfüllung"} für ${displayBusinessDate(p.effectiveDate)} übernommen.`)}catch(err){showMessage("QR-Code abgelehnt","!",err.message)}return;}const map={ART0001:"mettwurst",ART1001:"grot",ART1002:"gweiss",ART1003:"feuer",DEP0001:"glasplus"};if(map[code])selectProduct(map[code]);return}if(e.key.length===1)state.scanBuffer+=(e.key);state.scanTimer=setTimeout(()=>state.scanBuffer="",130)});
+    if(code.startsWith("KCASH2:")||code.startsWith("KCASH1:")){try{const p=await applyCashPayload(code,"hid-scanner");showMessage("Bargeldeinzahlung",money(p.total),`${p.type==="opening"?"Anfangsbestand":"Nachfüllung"} für ${displayBusinessDate(p.effectiveDate)} übernommen.`)}catch(err){showMessage("QR-Code abgelehnt","!",err.message)}return;}const map={ART0001:"mettwurst",ART1001:"grot",ART1002:"gweiss",ART1003:"feuer",DEP0001:"glasplus"};if(map[code])selectProduct(map[code]);return}if(e.key.length===1)state.scanBuffer+=(e.key);state.scanTimer=setTimeout(()=>state.scanBuffer="",130)});
 GROUPS=GROUPS.map(sanitizeGroup);PRODUCTS=PRODUCTS.map(sanitizeProduct);saveGroups();saveProducts();
 try{migrateTransactions()}catch(err){console.error("Transaktionsmigration fehlgeschlagen",err)}
 el("cashTransferTestHint").hidden=!window.KC_RUNTIME_FLAGS?.testPhaseToolGuidance;
@@ -3084,11 +3098,18 @@ function kcMarkInvoicePaid(){
   const id=el("invoiceSelect").value,inv=kcInvoices(),invoice=inv.find(x=>x.invoiceId===id);if(!invoice)return;
   invoice.status="paid";invoice.paidAt=new Date().toISOString();const events=kcEvents();events.filter(e=>e.invoiceId===id).forEach(e=>e.status="paid");kcWrite(KC_ACCOUNT_EVENTS_KEY,events);kcWrite(KC_ACCOUNT_INVOICES_KEY,inv);kcRenderAccountControl();el("invoiceResult").textContent=`${invoice.invoiceNo}: Zahlungseingang ${money(invoice.total)} verbucht; alle enthaltenen Artikelbuchungen sind bezahlt.`;
 }
-function kcCreateSharedCash(){
+async function kcCreateSharedCash(){
   const shared=el("sharedCashEnabled").checked,amount=Number(el("sharedCashAmount").value),regs=el("sharedCashRegisters").value.split(",").map(x=>x.trim()).filter(Boolean),date=el("sharedCashDate").value||localBusinessDate();
   if(!amount||shared&&!regs.length)return;
-  const p={format:"KC_CASH_TRANSFER",transferId:crypto.randomUUID(),type:"opening",scope:shared?"shared":"register",poolId:shared?`POOL-${date}-${payloadChecksum(regs.join("|"))}`:null,poolName:el("sharedCashName").value.trim(),registerId:shared?null:state.master.registerId,registerIds:shared?regs:undefined,effectiveDate:date,total:amount,breakdown:{[amount]:1},looseTotal:amount,rollTotal:0,note:shared?"Gemeinsamer Wechselgeldbestand für mehrere Kassen":"Kassenbezogener Anfangsbestand",createdAt:new Date().toISOString()};p.checksum=checksumObject(p);
-  el("sharedCashPayloadOut").value=encodePayload("KCASH1:",p);el("sharedCashStatus").textContent=shared?`${money(amount)} gelten gemeinsam für ${regs.join(", ")}. Jede Kasse darf denselben Pool-Code einmal übernehmen; der Pool wird nicht doppelt zum Gesamtbestand addiert.`:`${money(amount)} für ${state.master.registerId}.`;
+  const auth=window.KCCashTransferAuth;
+  if(!auth){el("sharedCashStatus").textContent="Fehler: KCASH2-Sicherheitsmodul nicht verfügbar";return}
+  try{
+    const createdAt=new Date().toISOString();
+    const p={format:auth.FORMAT,transferId:crypto.randomUUID(),type:"opening",scope:shared?"shared":"register",poolId:shared?`POOL-${date}-${payloadChecksum(regs.join("|"))}`:null,poolName:el("sharedCashName").value.trim(),registerId:shared?null:state.master.registerId,registerIds:shared?regs:undefined,effectiveDate:date,total:amount,breakdown:{[amount]:1},looseTotal:amount,rollTotal:0,note:shared?"Gemeinsamer Wechselgeldbestand für mehrere Kassen":"Kassenbezogener Anfangsbestand",createdAt,expiresAt:new Date(Date.now()+36*60*60*1000).toISOString()};
+    const signed=await auth.sign(p,{secret:await cashTransferSecret(),keyId:CASH_TRANSFER_KEY_ID});
+    el("sharedCashPayloadOut").value=auth.encode(signed);
+    el("sharedCashStatus").textContent=shared?`${money(amount)} gelten gemeinsam für ${regs.join(", ")}. KCASH2 ist kryptografisch authentifiziert und darf pro Kasse nur einmal übernommen werden.`:`${money(amount)} für ${state.master.registerId} · KCASH2 kryptografisch authentifiziert.`;
+  }catch(err){el("sharedCashPayloadOut").value="";el("sharedCashStatus").textContent=`Fehler: ${err.message}`}
 }
 
 // Repair 11: „Stimmt so“ setzt zwingend einen zuvor erfassten Zahlbetrag voraus.
