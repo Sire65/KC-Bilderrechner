@@ -14,13 +14,18 @@ on:
       - '.github/workflows/failover-regression.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   failover-regression:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
       - name: Syntax checks
@@ -30,7 +35,7 @@ jobs:
           node --check pos/dual-gateway-bootstrap.js
           node --check pos/service-worker.js
       - name: Install test dependency
-        run: npm install --no-save fake-indexeddb@6.2.2
+        run: npm install --ignore-scripts --no-save fake-indexeddb@6.2.2
       - name: Encrypted Local Vault regression
         run: node tests/local-vault.test.cjs
       - name: Dual gateway A/B regression
